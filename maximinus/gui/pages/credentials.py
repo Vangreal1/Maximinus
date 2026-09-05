@@ -2,16 +2,20 @@
 passphrases once, up front, so nothing later in the flow has to stop and
 ask again.
 
-What actually happens with each:
+What actually happens with each — both are real actions, not simulated:
   - The sudo password is used immediately to authenticate (a real
     `sudo -k -S -v` call — see security/sudo_session.py), then thrown
     away. sudo's own ticket cache is what avoids asking again later, the
     same mechanism the CLI relies on; there's no reason to hold onto the
     password itself past that one check.
-  - Each drive's LUKS passphrase is kept in memory only (see
-    gui/session.py) for the rest of this run, since a later step
-    (enrolling the drive for automatic unlock) will need it and there's
-    no equivalent cache for that. It is never written to disk or logged.
+  - Each drive's LUKS passphrase is used immediately to unlock that drive
+    for real (a real `cryptsetup open` — see
+    security/luks_enroll.unlock_device), which is also how it gets
+    checked: cryptsetup itself rejects a wrong passphrase, so success at
+    unlocking *is* the correctness check. The passphrase itself is never
+    stored anywhere, not in this page, not in the session object, not on
+    disk — only whether each device is now unlocked is kept (see
+    gui/session.py).
 
 Every password field masks its input (Gtk.Entry visibility=False), same
 as a terminal password prompt.
@@ -23,6 +27,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk  # noqa: E402
 
 from ..errors import format_error
+from ...security.luks_enroll import EnrollmentError, unlock_device
 from ...security.sudo_session import authenticate_with_password
 
 
@@ -54,8 +59,9 @@ class CredentialsPage(Gtk.Box):
         explanation = Gtk.Label(
             label=(
                 "Your sudo password is used once, right now, to authenticate, then "
-                "discarded. Any drive passphrases below stay in memory for this run "
-                "only. Neither is ever written to disk or logged."
+                "discarded. Any drive passphrases below are used once, right now, "
+                "to unlock that drive, then discarded — never stored, not even in "
+                "memory past this screen."
             ),
             xalign=0,
         )
@@ -145,8 +151,28 @@ class CredentialsPage(Gtk.Box):
             return
 
         self._session.sudo_authenticated = True
+
         for device, entry in self._luks_entries.items():
-            self._session.set_luks_passphrase(device, entry.get_text())
-            entry.set_text("")
+            if device in self._session.unlocked_devices:
+                continue  # already unlocked from a previous attempt on this screen
+            passphrase = entry.get_text()
+            entry.set_text("")  # drop it from the widget the moment we've read it
+            if not passphrase:
+                self._show_error(f"Enter the passphrase for {device} to continue.")
+                self.continue_button.set_sensitive(True)
+                return
+            try:
+                unlock_device(device, passphrase)
+            except EnrollmentError as exc:
+                self._show_error(str(exc))
+                self.continue_button.set_sensitive(True)
+                return
+            except Exception as exc:  # noqa: BLE001 - catch-all, see gui/errors.py
+                self._show_error(format_error(exc, context=f"unlocking {device}"))
+                self.continue_button.set_sensitive(True)
+                return
+            finally:
+                passphrase = None  # best-effort: drop the local reference promptly
+            self._session.unlocked_devices.add(device)
 
         self._on_continue()

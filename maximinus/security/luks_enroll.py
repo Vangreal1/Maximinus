@@ -145,6 +145,49 @@ def enroll(device: str, passphrase: str | None = None) -> str:
     return uuid
 
 
+def mapper_path_for(uuid: str) -> str:
+    return f"/dev/mapper/maximinus-{uuid[:8]}"
+
+
+def is_unlocked(device: str) -> bool:
+    return os.path.exists(mapper_path_for(get_uuid(device)))
+
+
+def unlock_device(device: str, passphrase: str) -> str:
+    """Unlock `device` right now with `passphrase` (a real `cryptsetup
+    open`), making its decrypted contents available at the returned mapper
+    path. This is also how the passphrase gets checked: cryptsetup itself
+    rejects a wrong one, there's no separate "verify" step.
+
+    The passphrase is only ever passed to cryptsetup's stdin; this
+    function does not write it anywhere, return it, or retain it after
+    this call returns — the caller's own copy is the only one that
+    existed, and it's the caller's responsibility to drop that promptly.
+
+    Idempotent: if this device is already unlocked (mapper already
+    exists), returns its path immediately without touching cryptsetup
+    again or needing the passphrase to still be correct.
+    """
+    uuid = get_uuid(device)
+    mapper_name = f"maximinus-{uuid[:8]}"
+    mapper_path = mapper_path_for(uuid)
+    if os.path.exists(mapper_path):
+        return mapper_path
+
+    result = subprocess.run(
+        ["sudo", "cryptsetup", "open", device, mapper_name],
+        input=passphrase + "\n",
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise EnrollmentError(
+            f"could not unlock {device}: {result.stderr.strip() or 'wrong passphrase or unlock failed'}"
+        )
+    return mapper_path
+
+
 def _register_crypttab(uuid: str, keyfile: str) -> None:
     existing = read_root_file(CRYPTTAB)
     if uuid in existing:

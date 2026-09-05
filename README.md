@@ -31,10 +31,15 @@ desktop). The full pipeline:
    used immediately to authenticate (a real `sudo -k -S -v` call) and then
    discarded, relying on sudo's own ticket cache the same way the CLI
    does. Any encrypted drives found each get their own passphrase field,
-   held in memory for the rest of the run (never written to disk or
-   logged) for a later drive-enrollment step to use. See
+   used immediately to actually unlock that drive (a real `cryptsetup
+   open`) — which is also how it's checked, since cryptsetup itself
+   rejects a wrong passphrase. The passphrase is never stored anywhere,
+   not even in memory past that one call; only *which* devices are now
+   unlocked is kept (see [maximinus/gui/session.py](maximinus/maximinus/gui/session.py)'s
+   `Session.unlocked_devices`). See
    [maximinus/gui/pages/credentials.py](maximinus/maximinus/gui/pages/credentials.py)
-   and [maximinus/gui/session.py](maximinus/maximinus/gui/session.py).
+   and [maximinus/security/luks_enroll.py](maximinus/maximinus/security/luks_enroll.py)'s
+   `unlock_device`.
 1. **Setup** — every safe/automatic item (package installs, registered
    fixers) as a checkbox, all pre-selected (per the Risk Taking level, see
    below), editable before you commit.
@@ -61,17 +66,18 @@ controls what starts pre-checked there and on the judgment screen — see
 mapping. It never changes what's offered, only the defaults. It has no
 effect on the opt-in features screen, which always starts unchecked.
 
-**Status: everything up through the opt-in features screen is
-simulated — except the credentials screen's sudo check and the reboot
+**Status: everything from the setup screen through the opt-in features
+screen is simulated — except the credentials screen and the reboot
 button, which are both real.** Every screen is populated from the real
 `collect_facts()`/`build_plan()`, so what you see reflects this machine's
 actual state, but clicking "Start"/"OK"/"Enable selected" on the way
 there walks through the selection with a short delay instead of actually
 running `apt-get`/`fixer.apply()`. The two exceptions:
 
-- The credentials screen's password field genuinely authenticates with
-  `sudo` (see above) — there's no meaningful "simulated" version of
-  checking a password.
+- The credentials screen genuinely authenticates with `sudo` and
+  genuinely unlocks each drive with `cryptsetup open` (see above) — there
+  isn't a meaningful "simulated" version of checking a password or a
+  passphrase; the whole point is finding out whether it's actually right.
 - The **Reboot** button on the final screen genuinely calls
   `systemctl reboot`, the same mechanism a desktop's own restart menu
   item uses (no sudo needed on a normal desktop session, via polkit).

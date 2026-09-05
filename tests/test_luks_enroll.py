@@ -1,3 +1,4 @@
+import subprocess
 from unittest.mock import patch
 
 from maximinus.security import luks_enroll
@@ -52,3 +53,57 @@ def test_enroll_resumes_a_half_finished_run_without_asking_for_passphrase_again(
     register.assert_called_once()
     getpass_mock.assert_not_called()
     run.assert_not_called()  # no cryptsetup luksAddKey, no mkdir/install
+
+
+def _ok(stdout="", stderr=""):
+    return subprocess.CompletedProcess(args=[], returncode=0, stdout=stdout, stderr=stderr)
+
+
+def _fail(stderr="No key available with this passphrase."):
+    return subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr=stderr)
+
+
+def test_unlock_device_is_a_noop_if_already_unlocked():
+    with patch.object(luks_enroll, "get_uuid", return_value="uuid-1"), patch(
+        "os.path.exists", return_value=True
+    ), patch("subprocess.run") as run:
+        path = luks_enroll.unlock_device("/dev/sda3", "unused")
+
+    assert path == "/dev/mapper/maximinus-uuid-1"
+    run.assert_not_called()
+
+
+def test_unlock_device_calls_cryptsetup_open_with_passphrase_on_stdin():
+    with patch.object(luks_enroll, "get_uuid", return_value="abc12345"), patch(
+        "os.path.exists", return_value=False
+    ), patch("subprocess.run", return_value=_ok()) as run:
+        path = luks_enroll.unlock_device("/dev/sda3", "correct-passphrase")
+
+    assert path == "/dev/mapper/maximinus-abc12345"
+    run.assert_called_once()
+    args, kwargs = run.call_args
+    assert args[0] == ["sudo", "cryptsetup", "open", "/dev/sda3", "maximinus-abc12345"]
+    assert kwargs["input"] == "correct-passphrase\n"
+
+
+def test_unlock_device_raises_enrollment_error_on_wrong_passphrase():
+    with patch.object(luks_enroll, "get_uuid", return_value="abc12345"), patch(
+        "os.path.exists", return_value=False
+    ), patch("subprocess.run", return_value=_fail()):
+        try:
+            luks_enroll.unlock_device("/dev/sda3", "wrong-passphrase")
+            assert False, "expected EnrollmentError"
+        except luks_enroll.EnrollmentError as exc:
+            assert "No key available" in str(exc)
+
+
+def test_unlock_device_never_returns_or_leaks_the_passphrase():
+    # The passphrase must never appear in the returned value or be
+    # retrievable from the function's return — only the mapper path comes
+    # back.
+    with patch.object(luks_enroll, "get_uuid", return_value="abc12345"), patch(
+        "os.path.exists", return_value=False
+    ), patch("subprocess.run", return_value=_ok()):
+        path = luks_enroll.unlock_device("/dev/sda3", "super-secret-passphrase")
+
+    assert "super-secret-passphrase" not in path
