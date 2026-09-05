@@ -1,27 +1,31 @@
-"""Progress screen: status text above a progress bar, plus a log of steps
-already finished.
+"""Progress screen: status text above a progress bar, with a structured
+log beneath it — not just a scrolling line of text, but a small report:
+what kind of step it was, what it did, and how long into the run it
+happened, finishing with a one-line summary.
 
 This is not wired to real execution yet. Each step is simulated with a
 short delay via GLib.timeout_add instead of actually calling apt-get or
 fixer.apply(). See the module docstring in maximinus/gui/__init__.py for
 why. Swapping in real execution later only means replacing what _step()
-does; the screen, the sequencing, and the callback contract all stay the
-same.
+does; the screen, the sequencing, the callback contract, and the report
+it builds all stay the same.
 
 Every step also runs inside a try/except so that a bug the rest of the
 code doesn't already handle (anything beyond a FixError/PoolError/
 EnrollmentError, which already carry their own explanation) can't just
 freeze the screen or silently vanish into a GLib warning on the terminal.
-It's shown in red beneath the progress bar instead, and a Continue button
-appears so the user isn't stuck.
+It's shown in red beneath the progress bar, logged as a failed step in
+the report, and a Continue button appears so the user isn't stuck.
 
-This screen is reused for two separate passes in the overall flow: once
-for the safe/automatic items chosen on the setup screen, and again for
-whichever judgment-call items the user opted into on the next screen.
-Each run gets its own `on_finished` callback passed to start(), so the
-window can send the first pass on to the judgment screen and the second
-pass on to the opt-in features screen.
+This screen is reused for three separate passes in the overall flow: the
+safe/automatic items chosen on the setup screen, whichever judgment-call
+items were opted into next, and finally whichever opt-in features were
+turned on. Each run gets its own `on_finished` callback passed to
+start(), so the same screen can continue on somewhere different each
+time, and its own fresh report.
 """
+
+import time
 
 import gi
 
@@ -31,6 +35,13 @@ from gi.repository import GLib, Gtk  # noqa: E402
 from ..errors import format_error
 
 STEP_DELAY_MS = 550
+
+_KIND_BADGES = {
+    "apt": "INSTALL",
+    "fixer": "FIX",
+    "judgment": "JUDGMENT",
+    "feature": "FEATURE",
+}
 
 
 def _describe(kind, payload):
@@ -52,6 +63,10 @@ def _describe(kind, payload):
     return f"Fixing: {payload.summary}", ""
 
 
+def _format_elapsed(seconds: float) -> str:
+    return f"+{seconds:0.1f}s"
+
+
 class ProgressPage(Gtk.Box):
     def __init__(self, on_finished):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -59,6 +74,8 @@ class ProgressPage(Gtk.Box):
         self._queue = []
         self._index = 0
         self._timeout_id = None
+        self._start_time = 0.0
+        self._failures = 0
 
         header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         header.get_style_context().add_class("header")
@@ -73,11 +90,11 @@ class ProgressPage(Gtk.Box):
         header.pack_start(subtitle, False, False, 0)
         self.pack_start(header, False, False, 0)
 
-        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        body.set_margin_start(14)
-        body.set_margin_end(14)
+        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        body.set_margin_start(16)
+        body.set_margin_end(16)
         body.set_margin_top(16)
-        body.set_margin_bottom(14)
+        body.set_margin_bottom(16)
 
         self.status_label = Gtk.Label(label="Getting ready.", xalign=0)
         self.status_label.get_style_context().add_class("status-text")
@@ -102,14 +119,18 @@ class ProgressPage(Gtk.Box):
         self.continue_button.connect("clicked", lambda *_: self._finish())
         body.pack_start(self.continue_button, False, False, 0)
 
+        report_label = Gtk.Label(label="Report", xalign=0)
+        report_label.get_style_context().add_class("item-title")
+        body.pack_start(report_label, False, False, 0)
+
         log_frame = Gtk.ScrolledWindow()
         log_frame.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         log_frame.get_style_context().add_class("panel")
-        self.log_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
-        self.log_box.set_margin_start(8)
-        self.log_box.set_margin_end(8)
-        self.log_box.set_margin_top(6)
-        self.log_box.set_margin_bottom(6)
+        self.log_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self.log_box.set_margin_start(10)
+        self.log_box.set_margin_end(10)
+        self.log_box.set_margin_top(8)
+        self.log_box.set_margin_bottom(8)
         log_frame.add(self.log_box)
         body.pack_start(log_frame, True, True, 0)
 
@@ -119,15 +140,19 @@ class ProgressPage(Gtk.Box):
         """Run through `selected_items` ((kind, payload) tuples). If
         `on_finished` is given, it's used for this run only, so the same
         screen can be reused for separate passes (safe items, then
-        opted-into judgment calls) that each continue somewhere different.
+        opted-into judgment calls, then opted-into features) that each
+        continue somewhere different.
         """
         if on_finished is not None:
             self._on_finished = on_finished
         self._queue = selected_items
         self._index = 0
+        self._failures = 0
+        self._start_time = time.monotonic()
         for child in self.log_box.get_children():
             self.log_box.remove(child)
         self.progress_bar.set_fraction(0.0)
+        self.progress_bar.set_text(None)
         self.error_label.hide()
         self.continue_button.hide()
 
@@ -146,9 +171,34 @@ class ProgressPage(Gtk.Box):
             GLib.source_remove(self._timeout_id)
         self._timeout_id = GLib.timeout_add(STEP_DELAY_MS, self._step)
 
-    def _log(self, text):
-        label = Gtk.Label(label=f"done: {text}", xalign=0)
-        label.get_style_context().add_class("log-text")
+    def _elapsed(self) -> float:
+        return time.monotonic() - self._start_time
+
+    def _log_row(self, badge_text: str, headline: str, failed: bool = False) -> None:
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+
+        badge = Gtk.Label(label=badge_text)
+        badge.get_style_context().add_class("item-badge-risk" if failed else "item-badge")
+        badge.set_valign(Gtk.Align.CENTER)
+        row.pack_start(badge, False, False, 0)
+
+        text = Gtk.Label(label=headline, xalign=0)
+        text.get_style_context().add_class("error-text" if failed else "log-text")
+        text.set_line_wrap(True)
+        row.pack_start(text, True, True, 0)
+
+        elapsed = Gtk.Label(label=_format_elapsed(self._elapsed()))
+        elapsed.get_style_context().add_class("log-elapsed")
+        elapsed.set_valign(Gtk.Align.CENTER)
+        row.pack_start(elapsed, False, False, 0)
+
+        self.log_box.pack_start(row, False, False, 0)
+        row.show_all()
+
+    def _log_summary(self, text: str) -> None:
+        label = Gtk.Label(label=text, xalign=0)
+        label.get_style_context().add_class("item-title")
+        label.set_margin_top(4)
         label.set_line_wrap(True)
         self.log_box.pack_start(label, False, False, 0)
         label.show()
@@ -159,22 +209,24 @@ class ProgressPage(Gtk.Box):
         self.continue_button.show()
 
     def _step(self):
+        total = len(self._queue)
         try:
             kind, payload = self._queue[self._index]
             headline, detail = _describe(kind, payload)
             self.status_label.set_text(f"{headline}\n{detail}" if detail else headline)
 
             self._index += 1
-            self.progress_bar.set_fraction(self._index / len(self._queue))
-            self._log(headline)
+            self.progress_bar.set_fraction(self._index / total)
+            self.progress_bar.set_text(f"Step {self._index} of {total}")
+            self._log_row(_KIND_BADGES.get(kind, kind.upper()), headline)
         except Exception as exc:  # noqa: BLE001 - deliberate catch-all, see module docstring
-            self._show_unexpected_error(
-                exc, context=f"step {self._index + 1} of {len(self._queue)}"
-            )
+            self._failures += 1
+            self._log_row("FAILED", f"Step {self._index + 1} of {total} did not finish", failed=True)
+            self._show_unexpected_error(exc, context=f"step {self._index + 1} of {total}")
             self._timeout_id = None
             return False
 
-        if self._index >= len(self._queue):
+        if self._index >= total:
             self._timeout_id = GLib.timeout_add(STEP_DELAY_MS, self._finish)
             return False
         return True
@@ -182,8 +234,15 @@ class ProgressPage(Gtk.Box):
     def _finish(self):
         self._timeout_id = None
         try:
+            completed = self._index
+            total = len(self._queue)
+            elapsed = self._elapsed()
+            if total:
+                word = "item" if completed == 1 else "items"
+                self._log_summary(f"Summary: {completed} of {total} {word} completed in {elapsed:0.1f}s.")
             self.status_label.set_text("That's everything that was selected.")
             self.progress_bar.set_fraction(1.0)
+            self.progress_bar.set_text(f"{completed} of {total} done" if total else "Nothing to do")
             self._on_finished()
         except Exception as exc:  # noqa: BLE001 - deliberate catch-all, see module docstring
             self._show_unexpected_error(exc, context="finishing up")

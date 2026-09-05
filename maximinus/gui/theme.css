@@ -1,6 +1,10 @@
 /* Dark monochrome, sharp-edged theme in the spirit of Blender's UI: flat
    grays only, zero border-radius, compact spacing. No accent color;
-   emphasis comes from lightness contrast, not hue. */
+   emphasis comes from lightness contrast, not hue.
+
+   Spacing scale used throughout (padding/margins): 4 / 6 / 8 / 10 / 14 /
+   16px. Interactive controls (button, entry, combo) share the same
+   vertical rhythm so a row mixing a button and a text field lines up. */
 
 * {
     border-radius: 0;
@@ -22,7 +26,7 @@ window {
 .header {
     background-color: #232323;
     border-bottom: 1px solid #050505;
-    padding: 7px 10px;
+    padding: 10px 14px;
 }
 
 .header-title {
@@ -52,7 +56,7 @@ window {
     background-color: #262626;
     border: 1px solid #141414;
     border-bottom-width: 0;
-    padding: 5px 8px;
+    padding: 8px 10px;
 }
 
 .item-row:last-child {
@@ -84,7 +88,7 @@ window {
     background-color: #3a3a3a;
     color: #cfcfcf;
     font-size: 7pt;
-    padding: 0px 5px;
+    padding: 2px 6px;
     border: 1px solid #4a4a4a;
 }
 
@@ -92,7 +96,7 @@ window {
     background-color: #2a2a2a;
     color: #a8a8a8;
     font-size: 7pt;
-    padding: 0px 5px;
+    padding: 2px 6px;
     border: 1px solid #555555;
 }
 
@@ -104,7 +108,7 @@ entry {
     caret-color: #e2e2e2;
     border: 1px solid #464646;
     border-radius: 0;
-    padding: 5px 8px;
+    padding: 6px 10px;
     box-shadow: none;
 }
 
@@ -124,7 +128,7 @@ button {
     background-image: none;
     color: #dedede;
     border: 1px solid #464646;
-    padding: 4px 12px;
+    padding: 6px 14px;
     box-shadow: none;
     text-shadow: none;
 }
@@ -152,7 +156,7 @@ button.suggested-action:hover {
 button.flat {
     background-color: transparent;
     border: none;
-    padding: 3px 6px;
+    padding: 5px 8px;
 }
 
 button.flat:hover {
@@ -170,8 +174,8 @@ checkbutton check {
     -gtk-icon-source: none;
     background-color: #262626;
     border: 1px solid #565656;
-    min-width: 13px;
-    min-height: 13px;
+    min-width: 14px;
+    min-height: 14px;
     border-radius: 0;
 }
 
@@ -193,14 +197,14 @@ progressbar {
 progressbar trough {
     background-color: #141414;
     border: 1px solid #050505;
-    min-height: 14px;
+    min-height: 16px;
     border-radius: 0;
 }
 
 progressbar progress {
     background-color: #d6d6d6;
     border-radius: 0;
-    min-height: 12px;
+    min-height: 14px;
 }
 
 /* ---- Status/log text ---- */
@@ -213,6 +217,12 @@ progressbar progress {
 .log-text {
     color: #7f7f7f;
     font-size: 8pt;
+    font-family: monospace;
+}
+
+.log-elapsed {
+    color: #5c5c5c;
+    font-size: 7.5pt;
     font-family: monospace;
 }
 

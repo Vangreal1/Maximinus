@@ -87,10 +87,10 @@ class FeaturesPage(Gtk.Box):
         scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         list_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         list_box.get_style_context().add_class("row-list")
-        list_box.set_margin_start(10)
-        list_box.set_margin_end(10)
+        list_box.set_margin_start(14)
+        list_box.set_margin_end(14)
         list_box.set_margin_top(8)
-        list_box.set_margin_bottom(4)
+        list_box.set_margin_bottom(6)
 
         for item in items:
             card = FeatureCard(item)
@@ -102,15 +102,15 @@ class FeaturesPage(Gtk.Box):
 
         self.status_label = Gtk.Label(label="", xalign=0)
         self.status_label.get_style_context().add_class("header-subtitle")
-        self.status_label.set_margin_start(10)
+        self.status_label.set_margin_start(14)
         self.status_label.set_no_show_all(True)
         self.pack_start(self.status_label, False, False, 0)
 
         footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        footer.set_margin_start(10)
-        footer.set_margin_end(10)
-        footer.set_margin_top(8)
-        footer.set_margin_bottom(10)
+        footer.set_margin_start(14)
+        footer.set_margin_end(14)
+        footer.set_margin_top(10)
+        footer.set_margin_bottom(14)
         footer.set_halign(Gtk.Align.END)
 
         self._count_label = Gtk.Label(label="")

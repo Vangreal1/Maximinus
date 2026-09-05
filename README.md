@@ -49,8 +49,12 @@ desktop). The full pipeline:
    fixers) as a checkbox, all pre-selected (per the Risk Taking level, see
    below), editable before you commit.
 2. **Progress** — a status line stating exactly what's happening right
-   now, above a progress bar, with a running log of completed steps below.
-   Reused for three separate passes (steps 4 and 6 too).
+   now, above a progress bar showing a step counter ("Step 2 of 4"), with
+   a structured report below: each completed step logs its type
+   (INSTALL/FIX/JUDGMENT/FEATURE) with an elapsed-time stamp, and the run
+   finishes with a one-line summary ("3 of 3 items completed in 2.1s").
+   Reused for three separate passes (steps 4 and 6 too), each getting its
+   own fresh report.
 3. **Judgment calls** — everything that needs a human decision (driver
    conflicts, audio/firewall changes), nothing pre-selected by default,
    each row showing the exact consequence text from `rules.yaml`. Clicking

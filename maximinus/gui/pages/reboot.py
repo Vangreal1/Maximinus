@@ -56,7 +56,7 @@ class RebootPage(Gtk.Box):
         body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         body.set_margin_start(14)
         body.set_margin_end(14)
-        body.set_margin_top(20)
+        body.set_margin_top(16)
         body.set_margin_bottom(14)
 
         headline = Gtk.Label(label="A reboot is recommended.", xalign=0)
@@ -88,6 +88,7 @@ class RebootPage(Gtk.Box):
         footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         footer.set_margin_start(14)
         footer.set_margin_end(14)
+        footer.set_margin_top(10)
         footer.set_margin_bottom(14)
         footer.set_halign(Gtk.Align.END)
 

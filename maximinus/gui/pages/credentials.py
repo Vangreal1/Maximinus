@@ -165,6 +165,7 @@ class CredentialsPage(Gtk.Box):
         footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         footer.set_margin_start(14)
         footer.set_margin_end(14)
+        footer.set_margin_top(10)
         footer.set_margin_bottom(14)
         footer.set_halign(Gtk.Align.END)
 

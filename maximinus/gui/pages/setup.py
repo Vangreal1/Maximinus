@@ -65,8 +65,8 @@ class SetupPage(Gtk.Box):
         self.pack_start(header, False, False, 0)
 
         toolbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-        toolbar.set_margin_start(10)
-        toolbar.set_margin_end(10)
+        toolbar.set_margin_start(14)
+        toolbar.set_margin_end(14)
         toolbar.set_margin_top(6)
         toolbar.set_margin_bottom(4)
         select_all_btn = Gtk.Button(label="Select all")
@@ -80,7 +80,7 @@ class SetupPage(Gtk.Box):
 
         risk_label = Gtk.Label(label="Risk taking:")
         risk_label.get_style_context().add_class("item-reason")
-        risk_label.set_margin_start(10)
+        risk_label.set_margin_start(14)
         self.risk_combo = Gtk.ComboBoxText()
         for level in risk.LEVELS:
             self.risk_combo.append(level, level)
@@ -93,17 +93,17 @@ class SetupPage(Gtk.Box):
         self.risk_description = Gtk.Label(label=risk.DESCRIPTIONS[risk.DEFAULT_LEVEL], xalign=0)
         self.risk_description.get_style_context().add_class("header-subtitle")
         self.risk_description.set_line_wrap(True)
-        self.risk_description.set_margin_start(10)
-        self.risk_description.set_margin_end(10)
-        self.risk_description.set_margin_bottom(4)
+        self.risk_description.set_margin_start(14)
+        self.risk_description.set_margin_end(14)
+        self.risk_description.set_margin_bottom(6)
         self.pack_start(self.risk_description, False, False, 0)
 
         scroller = Gtk.ScrolledWindow()
         scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         list_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         list_box.get_style_context().add_class("row-list")
-        list_box.set_margin_start(10)
-        list_box.set_margin_end(10)
+        list_box.set_margin_start(14)
+        list_box.set_margin_end(14)
 
         for item in classification.apt_items:
             packages = [
@@ -141,10 +141,10 @@ class SetupPage(Gtk.Box):
         self.pack_start(scroller, True, True, 0)
 
         footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        footer.set_margin_start(10)
-        footer.set_margin_end(10)
-        footer.set_margin_top(8)
-        footer.set_margin_bottom(10)
+        footer.set_margin_start(14)
+        footer.set_margin_end(14)
+        footer.set_margin_top(10)
+        footer.set_margin_bottom(14)
         footer.set_halign(Gtk.Align.END)
 
         self._count_label = Gtk.Label(label="")
