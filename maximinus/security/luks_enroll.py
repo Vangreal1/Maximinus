@@ -22,7 +22,6 @@ import os
 import stat
 import subprocess
 import tempfile
-import uuid as uuid_mod
 
 from .root_files import read_root_file, write_root_file
 from .sudo_session import run_privileged
