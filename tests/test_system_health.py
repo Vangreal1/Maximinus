@@ -63,9 +63,30 @@ def test_grub_os_prober_ok_when_installed_and_enabled():
         assert sh._detect_grub_os_prober_issue() == set()
 
 
-def test_grub_os_prober_not_flagged_without_ntfs_signal():
-    with patch.object(sh, "detect_drive_facts", return_value=set()):
+def test_grub_os_prober_not_flagged_without_any_other_os_signal():
+    with patch.object(sh, "detect_drive_facts", return_value=set()), patch.object(
+        sh, "_other_os_efi_entries", return_value=set()
+    ):
         assert sh._detect_grub_os_prober_issue() == set()
+
+
+def test_grub_os_prober_flagged_by_second_linux_install_efi_entry():
+    with patch.object(sh, "detect_drive_facts", return_value=set()), \
+         patch.object(sh, "_other_os_efi_entries", return_value={"fedora"}), \
+         patch("shutil.which", return_value=None):
+        assert sh._detect_grub_os_prober_issue() == {"grub.os_prober_disabled_with_other_os"}
+
+
+def test_own_efi_dirs_are_not_treated_as_another_os():
+    with patch.object(sh, "os") as mocked_os:
+        mocked_os.listdir.return_value = ["BOOT", "ubuntu"]
+        assert sh._other_os_efi_entries() == set()
+
+
+def test_foreign_efi_dir_is_reported():
+    with patch.object(sh, "os") as mocked_os:
+        mocked_os.listdir.return_value = ["BOOT", "ubuntu", "Microsoft"]
+        assert sh._other_os_efi_entries() == {"Microsoft"}
 
 
 def test_audio_conflict_detected_when_both_installed():

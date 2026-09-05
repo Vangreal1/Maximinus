@@ -8,18 +8,27 @@ Facts produced:
   time.ntp_disabled                      — clock isn't kept in sync, which
                                             can break apt/TLS with "future"
                                             or "past" certificate errors
-  grub.os_prober_disabled_with_other_os  — a likely dual-boot OS exists but
-                                            GRUB won't list it
+  grub.os_prober_disabled_with_other_os  — a likely dual-boot OS (Windows,
+                                            via an NTFS partition, or a
+                                            second Linux install, via its
+                                            own EFI/<name> directory) exists
+                                            but GRUB won't list it
   audio.pulseaudio_pipewire_conflict     — both audio servers installed
   firewall.ufw_inactive                  — ufw present but not enabled
 """
 
+import os
 import platform
 import shutil
 import subprocess
 
 from .drives import detect_drive_facts
 from .hardware import _run  # shared subprocess-with-fallback helper
+
+# This machine's own EFI System Partition boot-loader directories — anything
+# else under /boot/efi/EFI belongs to another OS (Windows, or a second Linux
+# install), since every OS's installer creates its own EFI/<name> folder.
+_OWN_EFI_DIR_NAMES = {"boot", "ubuntu", "linuxmint", "mint"}
 
 
 def _dpkg_installed(pkg):
@@ -64,9 +73,22 @@ def _detect_time_sync_disabled():
     return {"time.ntp_disabled"} if out == "no" else set()
 
 
+def _other_os_efi_entries():
+    """Names of EFI/<name> directories on the ESP that aren't this machine's
+    own — a read-only signal for "another OS is installed", Windows or a
+    second Linux distro, without mounting anything new."""
+    efi_dir = "/boot/efi/EFI"
+    try:
+        entries = os.listdir(efi_dir)
+    except OSError:
+        return set()
+    return {e for e in entries if e.lower() not in _OWN_EFI_DIR_NAMES}
+
+
 def _detect_grub_os_prober_issue():
     drive_facts = detect_drive_facts()
-    if "fs.ntfs_present" not in drive_facts:
+    other_os_present = "fs.ntfs_present" in drive_facts or bool(_other_os_efi_entries())
+    if not other_os_present:
         return set()  # only act on a real dual-boot signal, not a guess
     os_prober_missing = shutil.which("os-prober") is None
     grub_defaults = _read_file("/etc/default/grub")

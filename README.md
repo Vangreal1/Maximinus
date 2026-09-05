@@ -63,10 +63,12 @@ Auto-fixable (standard, well-documented, reversible — see
 - **`time-sync-disabled`** — NTP is off, which causes confusing apt/TLS
   failures from clock drift right after a fresh install. Runs
   `timedatectl set-ntp true`.
-- **`grub-os-prober-disabled`** — a likely dual-boot OS (an NTFS partition)
-  was found but GRUB won't list it, because os-prober isn't installed or
-  is explicitly disabled in `/etc/default/grub`. Installs os-prober,
-  re-enables it, and runs `update-grub`.
+- **`grub-os-prober-disabled`** — a likely dual-boot OS was found (an NTFS
+  partition for Windows, or a second Linux install's own `EFI/<name>`
+  directory on the EFI System Partition, read only — nothing new is
+  mounted to check this) but GRUB won't list it, because os-prober isn't
+  installed or is explicitly disabled in `/etc/default/grub`. Installs
+  os-prober, re-enables it, and runs `update-grub`.
 
 Guidance-only (surfaced via `scan`, not auto-fixed, because the fix itself
 carries real risk):
