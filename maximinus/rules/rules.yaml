@@ -1,6 +1,6 @@
 # Each rule fires only when every fact in `when` is present.
-# `actions` are proposed apt packages / setup steps — nothing is executed
-# by the prototype, they're only reported in the plan.
+# `actions` are proposed apt packages or setup steps. Nothing here gets
+# executed by the rule itself; it's only reported in the plan.
 
 - id: nvidia-driver
   when: [gpu.nvidia]
@@ -63,10 +63,11 @@
   actions:
     - type: manual_step
       description: >-
-        More than one NVIDIA driver package is installed at once (check with
-        `dpkg -l | grep nvidia-driver`). This is the exact situation that
-        leaves no driver working at all. Run `ubuntu-drivers devices` to see
-        the recommended version, `sudo apt purge` every other nvidia-driver-*
+        More than one NVIDIA driver package is installed at once. You can
+        check with `dpkg -l | grep nvidia-driver`. When this happens, apt
+        and the kernel can't settle on one driver, so often neither one
+        actually works. Run `ubuntu-drivers devices` to see which version
+        is recommended, `sudo apt purge` every other nvidia-driver-*
         package, then `sudo apt install <recommended>` and reboot.
   reason: "Multiple NVIDIA driver packages installed simultaneously"
 
@@ -75,9 +76,10 @@
   actions:
     - type: manual_step
       description: >-
-        The nvidia driver is installed but the open-source nouveau driver is
-        the one actually loaded — they can't both drive the same GPU.
-        Blacklist nouveau (e.g. add `blacklist nouveau` to
+        The nvidia driver is installed, but the open-source nouveau driver
+        is the one actually running the GPU right now. Only one driver can
+        drive a given GPU at a time. To switch to nvidia, blacklist
+        nouveau (add `blacklist nouveau` to
         /etc/modprobe.d/blacklist-nvidia-nouveau.conf), run
         `sudo update-initramfs -u`, and reboot.
   reason: "nouveau is active instead of the installed NVIDIA driver"
@@ -97,12 +99,14 @@
   actions:
     - type: manual_step
       description: >-
-        Secure Boot is enabled and the nvidia module isn't loaded — Secure
-        Boot silently refuses to load unsigned proprietary modules. Either
-        enroll the MOK key generated when the driver was installed (`sudo
-        mokutil --import /var/lib/shim-signed/mok/MOK.der`, then reboot and
-        follow the blue enrollment screen), or disable Secure Boot in
-        firmware settings.
+        Secure Boot is turned on and the nvidia module isn't loaded. This
+        is a common combination: Secure Boot quietly refuses to load a
+        proprietary module that isn't signed, without showing an error.
+        Either enroll the MOK key that was generated when the driver was
+        installed (`sudo mokutil --import
+        /var/lib/shim-signed/mok/MOK.der`, then reboot and follow the blue
+        enrollment screen), or turn off Secure Boot in your firmware
+        settings.
   reason: "Secure Boot may be silently blocking the NVIDIA module"
 
 - id: nvidia-smi-failing
@@ -110,12 +114,13 @@
   actions:
     - type: manual_step
       description: >-
-        The nvidia kernel module is loaded but `nvidia-smi` can't talk to
-        it — usually a version mismatch between the kernel module and the
-        installed userspace libraries (e.g. leftover files from a previous
-        driver version or a different install method). Reinstall the
-        driver cleanly: `sudo apt purge '*nvidia*'` then `sudo apt install
-        <recommended-version>` and reboot.
+        The nvidia kernel module is loaded, but `nvidia-smi` can't talk to
+        it. This is usually a version mismatch between the kernel module
+        and the installed userspace libraries, often left over from a
+        previous driver version or a different install method. The
+        cleanest fix is to reinstall the driver: `sudo apt purge
+        '*nvidia*'` then `sudo apt install <recommended-version>` and
+        reboot.
   reason: "nvidia-smi cannot communicate with the loaded driver"
 
 - id: amd-module-not-loaded
@@ -185,10 +190,11 @@
     - type: manual_step
       description: >-
         Both PulseAudio and PipeWire's PulseAudio replacement are
-        installed, which can fight over the audio device. Mint's default
-        is PipeWire — remove the old one with `sudo apt purge pulseaudio`
-        (not auto-run: doing this while audio is actively playing can
-        interrupt the current session).
+        installed, and they can end up fighting over the audio device.
+        Mint uses PipeWire by default, so the fix is to remove the old
+        one: `sudo apt purge pulseaudio`. This isn't done automatically
+        because removing it while audio is actively playing can interrupt
+        whatever's using it right now.
   reason: "Both pulseaudio and pipewire-pulse are installed"
 
 - id: firewall-ufw-inactive
@@ -196,10 +202,11 @@
   actions:
     - type: manual_step
       description: >-
-        ufw is installed but not enabled. Consider `sudo ufw enable` (not
-        auto-run: if you rely on inbound connections such as SSH, allow
-        that port first with `sudo ufw allow ssh`, or you could lock
-        yourself out of a remote session).
+        ufw is installed but not turned on. You can enable it with `sudo
+        ufw enable`. This isn't done automatically because if you connect
+        to this machine remotely (SSH, for example), turning on the
+        firewall without first allowing that port could lock you out.
+        Allow it first with `sudo ufw allow ssh` if that applies to you.
   reason: "Firewall (ufw) is installed but inactive"
 
 - id: storage-pool-candidate

@@ -1,9 +1,7 @@
-"""Setup screen: pick which of the safe/automatic changes to apply.
+"""Setup screen: pick which of the safe, automatic changes to apply.
 
-Judgment-call items (driver conflicts, audio, firewall) are deliberately
-NOT listed here — they get their own screen after the immediate changes
-run, per the intended flow: settle the safe stuff first, then walk through
-the riskier decisions one at a time with their consequences spelled out.
+Driver conflicts, audio, and firewall changes are not listed here. Those
+need a judgment call, so they get their own screen after these ones run.
 """
 
 import gi
@@ -16,16 +14,15 @@ class SetupRow(Gtk.Box):
     """One selectable row: a checkbox, a title, and a dim reason line."""
 
     def __init__(self, title, reason, badge, checked=True):
-        super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.get_style_context().add_class("item-row")
-        self.set_margin_top(0)
 
         self.check = Gtk.CheckButton()
         self.check.set_active(checked)
         self.check.set_valign(Gtk.Align.CENTER)
         self.pack_start(self.check, False, False, 0)
 
-        text_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        text_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         title_label = Gtk.Label(label=title, xalign=0)
         title_label.get_style_context().add_class("item-title")
         title_label.set_line_wrap(True)
@@ -52,12 +49,13 @@ class SetupPage(Gtk.Box):
         self._on_start = on_start
         self._rows = []  # list of (row, kind, payload)
 
-        header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         header.get_style_context().add_class("header")
-        title = Gtk.Label(label="MAXIMINUS — SETUP", xalign=0)
+        title = Gtk.Label(label="MAXIMINUS", xalign=0)
         title.get_style_context().add_class("header-title")
         subtitle = Gtk.Label(
-            label="Select which changes to apply. Judgment calls come after.", xalign=0
+            label="Pick what to change. Anything that needs a judgment call comes next.",
+            xalign=0,
         )
         subtitle.get_style_context().add_class("header-subtitle")
         header.pack_start(title, False, False, 0)
@@ -67,15 +65,15 @@ class SetupPage(Gtk.Box):
         self._rescan_notice = Gtk.Label(xalign=0)
         self._rescan_notice.get_style_context().add_class("header-subtitle")
         self._rescan_notice.set_no_show_all(True)
-        self._rescan_notice.set_margin_start(14)
-        self._rescan_notice.set_margin_top(6)
+        self._rescan_notice.set_margin_start(10)
+        self._rescan_notice.set_margin_top(4)
         self.pack_start(self._rescan_notice, False, False, 0)
 
-        toolbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        toolbar.set_margin_start(14)
-        toolbar.set_margin_end(14)
-        toolbar.set_margin_top(10)
-        toolbar.set_margin_bottom(6)
+        toolbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        toolbar.set_margin_start(10)
+        toolbar.set_margin_end(10)
+        toolbar.set_margin_top(6)
+        toolbar.set_margin_bottom(4)
         select_all_btn = Gtk.Button(label="Select all")
         select_all_btn.get_style_context().add_class("flat")
         select_all_btn.connect("clicked", lambda *_: self._set_all(True))
@@ -90,8 +88,8 @@ class SetupPage(Gtk.Box):
         scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         list_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         list_box.get_style_context().add_class("row-list")
-        list_box.set_margin_start(14)
-        list_box.set_margin_end(14)
+        list_box.set_margin_start(10)
+        list_box.set_margin_end(10)
 
         for item in classification.apt_items:
             packages = [
@@ -102,31 +100,31 @@ class SetupPage(Gtk.Box):
             ]
             row = SetupRow(
                 title=item.reason,
-                reason=f"would install: {', '.join(packages)}",
+                reason="Installs: " + ", ".join(packages),
                 badge="INSTALL",
             )
             list_box.pack_start(row, False, False, 0)
             self._rows.append((row, "apt", item))
 
-        for fixer in classification.fixers_to_run:
-            row = SetupRow(title=fixer.summary, reason=f"fix id: {fixer.id}", badge="FIX")
+        for fixer, item in zip(classification.fixers_to_run, classification.fixer_items):
+            row = SetupRow(title=item.reason, reason=fixer.summary, badge="FIX")
             list_box.pack_start(row, False, False, 0)
             self._rows.append((row, "fixer", fixer))
 
         if not self._rows:
-            empty = Gtk.Label(label="Nothing to do right now — this machine is clean.", xalign=0)
+            empty = Gtk.Label(label="Nothing found that needs fixing.", xalign=0)
             empty.get_style_context().add_class("item-reason")
-            empty.set_margin_top(20)
+            empty.set_margin_top(16)
             list_box.pack_start(empty, False, False, 0)
 
         scroller.add(list_box)
         self.pack_start(scroller, True, True, 0)
 
-        footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        footer.set_margin_start(14)
-        footer.set_margin_end(14)
-        footer.set_margin_top(10)
-        footer.set_margin_bottom(14)
+        footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        footer.set_margin_start(10)
+        footer.set_margin_end(10)
+        footer.set_margin_top(8)
+        footer.set_margin_bottom(10)
         footer.set_halign(Gtk.Align.END)
 
         self._count_label = Gtk.Label(label="")
@@ -158,6 +156,6 @@ class SetupPage(Gtk.Box):
 
     def show_rescan_notice(self):
         self._rescan_notice.set_text(
-            "Done. This list reflects the last scan — re-open to pick up any new state."
+            "Finished. Close and reopen this window to check for anything new."
         )
         self._rescan_notice.show()

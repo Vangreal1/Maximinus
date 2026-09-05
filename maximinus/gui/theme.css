@@ -1,12 +1,12 @@
-/* Dark monochrome, sharp-edged theme in the spirit of Blender's UI:
-   flat grays only, zero border-radius, compact spacing. No accent color —
+/* Dark monochrome, sharp-edged theme in the spirit of Blender's UI: flat
+   grays only, zero border-radius, compact spacing. No accent color;
    emphasis comes from lightness contrast, not hue. */
 
 * {
     border-radius: 0;
     outline-style: none;
     font-family: "Inter", "Noto Sans", sans-serif;
-    font-size: 10.5pt;
+    font-size: 9.5pt;
 }
 
 window {
@@ -22,19 +22,19 @@ window {
 .header {
     background-color: #232323;
     border-bottom: 1px solid #050505;
-    padding: 10px 14px;
+    padding: 7px 10px;
 }
 
 .header-title {
     font-weight: 600;
-    font-size: 12pt;
+    font-size: 10.5pt;
     color: #e8e8e8;
     letter-spacing: 0.5px;
 }
 
 .header-subtitle {
     color: #8a8a8a;
-    font-size: 9pt;
+    font-size: 8pt;
 }
 
 /* ---- Generic panel/card ---- */
@@ -52,7 +52,7 @@ window {
     background-color: #262626;
     border: 1px solid #141414;
     border-bottom-width: 0;
-    padding: 8px 10px;
+    padding: 5px 8px;
 }
 
 .item-row:last-child {
@@ -66,33 +66,33 @@ window {
 .item-title {
     color: #e2e2e2;
     font-weight: 600;
-    font-size: 10pt;
+    font-size: 9pt;
 }
 
 .item-reason {
     color: #8f8f8f;
-    font-size: 9pt;
+    font-size: 8pt;
 }
 
 .item-risk {
     color: #b8b8b8;
-    font-size: 9pt;
+    font-size: 8pt;
     font-style: italic;
 }
 
 .item-badge {
     background-color: #3a3a3a;
     color: #cfcfcf;
-    font-size: 8pt;
-    padding: 1px 6px;
+    font-size: 7pt;
+    padding: 0px 5px;
     border: 1px solid #4a4a4a;
 }
 
 .item-badge-risk {
     background-color: #2a2a2a;
     color: #a8a8a8;
-    font-size: 8pt;
-    padding: 1px 6px;
+    font-size: 7pt;
+    padding: 0px 5px;
     border: 1px solid #555555;
 }
 
@@ -102,7 +102,7 @@ button {
     background-image: none;
     color: #dedede;
     border: 1px solid #464646;
-    padding: 6px 16px;
+    padding: 4px 12px;
     box-shadow: none;
     text-shadow: none;
 }
@@ -130,7 +130,7 @@ button.suggested-action:hover {
 button.flat {
     background-color: transparent;
     border: none;
-    padding: 4px 8px;
+    padding: 3px 6px;
 }
 
 button.flat:hover {
@@ -142,8 +142,8 @@ checkbutton {
     color: #d6d6d6;
 }
 
-/* Plain filled square, no glyph — avoids the system icon theme's accent
-   color leaking a blue checkmark into an otherwise monochrome UI. */
+/* Plain filled square, no glyph. This is so the system icon theme's blue
+   checkmark doesn't leak color into an otherwise monochrome UI. */
 checkbutton check {
     -gtk-icon-source: none;
     background-color: #262626;
@@ -171,26 +171,26 @@ progressbar {
 progressbar trough {
     background-color: #141414;
     border: 1px solid #050505;
-    min-height: 18px;
+    min-height: 14px;
     border-radius: 0;
 }
 
 progressbar progress {
     background-color: #d6d6d6;
     border-radius: 0;
-    min-height: 16px;
+    min-height: 12px;
 }
 
 /* ---- Status/log text ---- */
 .status-text {
     color: #e2e2e2;
-    font-size: 10.5pt;
+    font-size: 9.5pt;
     font-weight: 500;
 }
 
 .log-text {
     color: #7f7f7f;
-    font-size: 9pt;
+    font-size: 8pt;
     font-family: monospace;
 }
 

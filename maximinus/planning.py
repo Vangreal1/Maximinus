@@ -1,7 +1,7 @@
-"""Shared classification of a plan into "safe to automate" vs. "needs a
-human decision" — used by both the CLI (`cleanup`) and the GUI (setup
-screen vs. judgment screen), so the two front ends never disagree about
-which items are safe to act on without asking.
+"""Splits a plan into what's safe to do without asking and what needs a
+human decision. Both the CLI (`cleanup`) and the GUI (setup screen versus
+judgment screen) use this, so they never disagree about which items count
+as safe to automate.
 """
 
 from dataclasses import dataclass
@@ -12,21 +12,25 @@ from .fixes.registry import Fixer
 
 @dataclass
 class Classification:
-    apt_items: list          # PlanItems whose action is installing packages
-    packages: list            # deduped package names across apt_items
-    fixers_to_run: list        # Fixer objects whose fact is currently true
-    left_for_you: list          # PlanItems with no safe automatic handling
+    apt_items: list       # PlanItems whose action is installing a package
+    packages: list         # deduped package names across apt_items
+    fixers_to_run: list     # Fixer objects whose condition is currently true
+    fixer_items: list        # the PlanItem that triggered each fixer (same order)
+    left_for_you: list        # PlanItems with no safe automatic handling
 
 
 def classify_plan(plan: list[PlanItem], fixers: dict[str, Fixer]) -> Classification:
-    """Split `plan` into what's safe to do unattended (install a recommended
-    package, or run a registered Fixer) versus what needs a human decision
-    (a manual_step with no matching Fixer — e.g. resolving a driver
-    conflict, touching the firewall)."""
+    """Sort `plan` into three groups: install a recommended package, run a
+    registered fixer, or leave it for the user. A manual_step only ends up
+    in the third group if none of the registered fixers cover its fact,
+    which is true for things like a driver conflict or a firewall change
+    that need a judgment call, not an automatic fix.
+    """
     fixer_by_fact = {fixer.fact: fixer for fixer in fixers.values()}
     apt_packages = []
     apt_items = []
     fixers_to_run = []
+    fixer_items = []
     seen_fixer_ids = set()
     left_for_you = []
 
@@ -47,6 +51,7 @@ def classify_plan(plan: list[PlanItem], fixers: dict[str, Fixer]) -> Classificat
             for fixer in matched:
                 if fixer.id not in seen_fixer_ids:
                     fixers_to_run.append(fixer)
+                    fixer_items.append(item)
                     seen_fixer_ids.add(fixer.id)
             continue
 
@@ -54,4 +59,4 @@ def classify_plan(plan: list[PlanItem], fixers: dict[str, Fixer]) -> Classificat
 
     seen_pkgs = set()
     unique_packages = [p for p in apt_packages if not (p in seen_pkgs or seen_pkgs.add(p))]
-    return Classification(apt_items, unique_packages, fixers_to_run, left_for_you)
+    return Classification(apt_items, unique_packages, fixers_to_run, fixer_items, left_for_you)

@@ -27,7 +27,7 @@ def _load_css():
 class MaximinusWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Maximinus")
-        self.set_default_size(720, 560)
+        self.set_default_size(540, 420)
         self.get_style_context().add_class("root-bg")
 
         self._facts = collect_facts()

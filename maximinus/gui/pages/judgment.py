@@ -1,13 +1,13 @@
 """Judgment screen: the items that need a human decision, one row each,
 with a checkbox and an explanation of what could happen if you go ahead.
 
-Shown after the immediate/safe changes finish. Unlike the setup screen,
-nothing here is pre-selected — these are opt-in by design, since each one
-carries a real trade-off (see rules.yaml's manual_step descriptions, which
-this screen surfaces verbatim).
+Shown after the safe changes finish. Unlike the setup screen, nothing here
+is pre-selected. Each one carries a real trade-off (see rules.yaml's
+manual_step descriptions, which this screen shows word for word), so the
+user has to opt in deliberately rather than uncheck their way out of it.
 
-NOT WIRED TO REAL EXECUTION YET — clicking OK simulates applying the
-selection with a short delay rather than actually running anything.
+This is not wired to real execution yet. Clicking OK simulates applying
+the selection with a short delay instead of actually running anything.
 """
 
 import gi
@@ -18,17 +18,17 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 class JudgmentRow(Gtk.Box):
     def __init__(self, item):
-        super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.get_style_context().add_class("item-row")
         self.item = item
 
         self.check = Gtk.CheckButton()
         self.check.set_active(False)
         self.check.set_valign(Gtk.Align.START)
-        self.check.set_margin_top(2)
+        self.check.set_margin_top(1)
         self.pack_start(self.check, False, False, 0)
 
-        text_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+        text_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         title_label = Gtk.Label(label=item.reason, xalign=0)
         title_label.get_style_context().add_class("item-title")
         title_label.set_line_wrap(True)
@@ -45,10 +45,10 @@ class JudgmentRow(Gtk.Box):
 
         self.pack_start(text_box, True, True, 0)
 
-        badge = Gtk.Label(label="JUDGMENT CALL")
+        badge = Gtk.Label(label="YOUR CALL")
         badge.get_style_context().add_class("item-badge-risk")
         badge.set_valign(Gtk.Align.START)
-        badge.set_margin_top(2)
+        badge.set_margin_top(1)
         self.pack_start(badge, False, False, 0)
 
     @property
@@ -62,12 +62,12 @@ class JudgmentPage(Gtk.Box):
         self._on_done = on_done
         self._rows = []
 
-        header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         header.get_style_context().add_class("header")
-        title = Gtk.Label(label="MAXIMINUS — JUDGMENT CALLS", xalign=0)
+        title = Gtk.Label(label="MAXIMINUS", xalign=0)
         title.get_style_context().add_class("header-title")
         subtitle = Gtk.Label(
-            label="Nothing here is pre-selected. Read what could happen, then choose.",
+            label="These need a decision. Nothing is picked for you, read each one first.",
             xalign=0,
         )
         subtitle.get_style_context().add_class("header-subtitle")
@@ -79,9 +79,9 @@ class JudgmentPage(Gtk.Box):
         scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         list_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         list_box.get_style_context().add_class("row-list")
-        list_box.set_margin_start(14)
-        list_box.set_margin_end(14)
-        list_box.set_margin_top(10)
+        list_box.set_margin_start(10)
+        list_box.set_margin_end(10)
+        list_box.set_margin_top(6)
 
         for item in items:
             row = JudgmentRow(item)
@@ -89,9 +89,9 @@ class JudgmentPage(Gtk.Box):
             self._rows.append(row)
 
         if not self._rows:
-            empty = Gtk.Label(label="No judgment calls this time.", xalign=0)
+            empty = Gtk.Label(label="Nothing needs a judgment call this time.", xalign=0)
             empty.get_style_context().add_class("item-reason")
-            empty.set_margin_top(20)
+            empty.set_margin_top(16)
             list_box.pack_start(empty, False, False, 0)
 
         scroller.add(list_box)
@@ -99,15 +99,15 @@ class JudgmentPage(Gtk.Box):
 
         self.status_label = Gtk.Label(label="", xalign=0)
         self.status_label.get_style_context().add_class("header-subtitle")
-        self.status_label.set_margin_start(14)
+        self.status_label.set_margin_start(10)
         self.status_label.set_no_show_all(True)
         self.pack_start(self.status_label, False, False, 0)
 
-        footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        footer.set_margin_start(14)
-        footer.set_margin_end(14)
-        footer.set_margin_top(10)
-        footer.set_margin_bottom(14)
+        footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        footer.set_margin_start(10)
+        footer.set_margin_end(10)
+        footer.set_margin_top(8)
+        footer.set_margin_bottom(10)
         footer.set_halign(Gtk.Align.END)
 
         self._count_label = Gtk.Label(label="")
@@ -135,12 +135,14 @@ class JudgmentPage(Gtk.Box):
             self._on_done([])
             return
         self.ok_button.set_sensitive(False)
-        self.status_label.set_text(f"Applying {len(selected)} selected item(s)…")
+        word = "item" if len(selected) == 1 else "items"
+        self.status_label.set_text(f"Applying {len(selected)} {word}.")
         self.status_label.show()
         GLib.timeout_add(500, self._finish, selected)
 
     def _finish(self, selected):
-        self.status_label.set_text(f"Done — {len(selected)} item(s) applied (simulated).")
+        word = "item" if len(selected) == 1 else "items"
+        self.status_label.set_text(f"Done. {len(selected)} {word} applied. (This was a preview, nothing really ran.)")
         self.ok_button.set_sensitive(True)
         self._on_done(selected)
         return False
