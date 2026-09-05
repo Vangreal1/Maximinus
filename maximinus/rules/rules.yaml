@@ -1,0 +1,66 @@
+# Each rule fires only when every fact in `when` is present.
+# `actions` are proposed apt packages / setup steps — nothing is executed
+# by the prototype, they're only reported in the plan.
+
+- id: nvidia-driver
+  when: [gpu.nvidia]
+  actions:
+    - type: apt_install
+      packages: [nvidia-driver-535]
+  reason: "NVIDIA GPU detected"
+
+- id: amd-driver
+  when: [gpu.amd]
+  actions:
+    - type: apt_install
+      packages: [firmware-amd-graphics, mesa-vulkan-drivers]
+  reason: "AMD GPU detected"
+
+- id: intel-microcode
+  when: [cpu.microcode_intel]
+  actions:
+    - type: apt_install
+      packages: [intel-microcode]
+  reason: "Intel CPU detected"
+
+- id: amd-microcode
+  when: [cpu.microcode_amd]
+  actions:
+    - type: apt_install
+      packages: [amd64-microcode]
+  reason: "AMD CPU detected"
+
+- id: broadcom-wifi
+  when: [wifi.broadcom]
+  actions:
+    - type: apt_install
+      packages: [bcmwl-kernel-source]
+  reason: "Broadcom wireless chipset detected"
+
+- id: ntfs-support
+  when: [fs.ntfs_present]
+  actions:
+    - type: apt_install
+      packages: [ntfs-3g]
+  reason: "NTFS-formatted drive/partition detected"
+
+- id: exfat-support
+  when: [fs.exfat_present]
+  actions:
+    - type: apt_install
+      packages: [exfatprogs]
+  reason: "exFAT-formatted drive/partition detected"
+
+- id: luks-auto-unlock
+  when: [fs.luks_present]
+  actions:
+    - type: manual_step
+      description: "Run `maximinus enroll-drive <device>` to unlock this drive automatically at boot (asks for your existing passphrase once)."
+  reason: "Encrypted (LUKS) drive detected that is not yet set up for automatic unlock"
+
+- id: hfsplus-support
+  when: [fs.hfsplus_present]
+  actions:
+    - type: apt_install
+      packages: [hfsplus, hfsprogs]
+  reason: "HFS+ (macOS) formatted drive/partition detected"
