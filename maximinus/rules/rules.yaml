@@ -151,6 +151,57 @@
         apt purge amd64-microcode`, whichever doesn't match your CPU.
   reason: "Microcode package installed for a CPU vendor that isn't this machine's"
 
+- id: apt-broken-state
+  when: [apt.broken_state]
+  actions:
+    - type: manual_step
+      description: "Run `maximinus fix apt-broken-state` to finish an interrupted dpkg/apt run (dpkg --configure -a; apt-get install -f)."
+  reason: "dpkg reports packages left half-configured (an interrupted install/upgrade)"
+
+- id: dkms-headers-missing
+  when: [dkms.headers_missing]
+  actions:
+    - type: manual_step
+      description: "Run `maximinus fix dkms-headers-missing` to install linux-headers-$(uname -r) so DKMS modules (NVIDIA, VirtualBox, ...) can actually build."
+  reason: "DKMS modules are registered but the matching kernel headers aren't installed"
+
+- id: time-sync-disabled
+  when: [time.ntp_disabled]
+  actions:
+    - type: manual_step
+      description: "Run `maximinus fix time-sync-disabled` to enable NTP time sync (a drifted clock causes confusing apt/TLS failures)."
+  reason: "NTP time synchronization is disabled"
+
+- id: grub-os-prober-disabled
+  when: [grub.os_prober_disabled_with_other_os]
+  actions:
+    - type: manual_step
+      description: "Run `maximinus fix grub-os-prober-disabled` to make GRUB list the other OS it found (installs os-prober, enables it, regenerates the GRUB menu)."
+  reason: "A likely dual-boot OS was found but GRUB isn't set up to show it"
+
+- id: audio-pulseaudio-pipewire-conflict
+  when: [audio.pulseaudio_pipewire_conflict]
+  actions:
+    - type: manual_step
+      description: >-
+        Both PulseAudio and PipeWire's PulseAudio replacement are
+        installed, which can fight over the audio device. Mint's default
+        is PipeWire — remove the old one with `sudo apt purge pulseaudio`
+        (not auto-run: doing this while audio is actively playing can
+        interrupt the current session).
+  reason: "Both pulseaudio and pipewire-pulse are installed"
+
+- id: firewall-ufw-inactive
+  when: [firewall.ufw_inactive]
+  actions:
+    - type: manual_step
+      description: >-
+        ufw is installed but not enabled. Consider `sudo ufw enable` (not
+        auto-run: if you rely on inbound connections such as SSH, allow
+        that port first with `sudo ufw allow ssh`, or you could lock
+        yourself out of a remote session).
+  reason: "Firewall (ufw) is installed but inactive"
+
 - id: storage-pool-candidate
   when: [storage.poolable]
   actions:

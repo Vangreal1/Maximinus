@@ -12,6 +12,7 @@ import sys
 from .detectors import collect_facts
 from .detectors.drives import list_luks_devices
 from .engine import build_plan
+from .fixes import FIXERS, FixError
 from .security.luks_enroll import EnrollmentError, enroll
 from .security.sudo_session import ElevationError, ensure_sudo
 from .storage.discovery import discover_category_branches
@@ -164,6 +165,42 @@ def _cmd_pool_drives(args):
     return 0
 
 
+def _cmd_fix(args):
+    if args.list:
+        facts = collect_facts()
+        for fixer in FIXERS.values():
+            status = "detected now" if fixer.fact in facts else "not currently detected"
+            print(f"{fixer.id} ({status}): {fixer.summary}")
+        return 0
+
+    if args.id is None:
+        print("Specify a fix id, or use --list to see available fixes.", file=sys.stderr)
+        return 1
+
+    fixer = FIXERS.get(args.id)
+    if fixer is None:
+        print(f"Unknown fix id: {args.id}", file=sys.stderr)
+        print("Run `maximinus fix --list` to see available fixes.", file=sys.stderr)
+        return 1
+
+    print(f"About to fix [{fixer.id}]: {fixer.summary}")
+    if not args.yes:
+        answer = input("Proceed? [y/N] ")
+        if answer.strip().lower() not in ("y", "yes"):
+            print("Aborted, nothing changed.")
+            return 1
+
+    try:
+        ensure_sudo()
+        fixer.apply()
+    except (ElevationError, FixError) as exc:
+        print(f"Failed: {exc}", file=sys.stderr)
+        return 1
+
+    print("Done.")
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="maximinus",
@@ -196,6 +233,18 @@ def main(argv=None):
         "-y", "--yes", action="store_true", help="don't prompt for confirmation"
     )
     pool_parser.set_defaults(func=_cmd_pool_drives)
+
+    fix_parser = subparsers.add_parser(
+        "fix", help="apply a specific real fix for a detected problem (see `fix --list`)"
+    )
+    fix_parser.add_argument("id", nargs="?", default=None, help="fix id, e.g. apt-broken-state")
+    fix_parser.add_argument(
+        "--list", action="store_true", help="list available fixes and whether they're currently detected"
+    )
+    fix_parser.add_argument(
+        "-y", "--yes", action="store_true", help="don't prompt for confirmation"
+    )
+    fix_parser.set_defaults(func=_cmd_fix)
 
     args = parser.parse_args(argv)
     if args.command is None:

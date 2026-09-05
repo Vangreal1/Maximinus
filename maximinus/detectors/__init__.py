@@ -8,12 +8,14 @@ from .hardware import detect_hardware_facts
 from .drives import detect_drive_facts
 from .storage import detect_storage_facts
 from .driver_health import detect_driver_health_facts
+from .system_health import detect_system_health_facts
 
 ALL_DETECTORS = [
     detect_hardware_facts,
     detect_drive_facts,
     detect_storage_facts,
     detect_driver_health_facts,
+    detect_system_health_facts,
 ]
 
 

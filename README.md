@@ -44,6 +44,38 @@ Maximinus asks for credentials at most once per run, and never stores them:
   passphrase itself is never written to disk, logged, or cached; see
   [maximinus/security/](maximinus/security/) for the implementation.
 
+## Fixing common fresh-install problems
+
+`maximinus fix <id>` applies a real, specific fix for a detected problem —
+`maximinus fix --list` shows every available fix and whether it's
+currently detected on this machine. Each one asks for confirmation (skip
+with `-y`), then `ensure_sudo()` once, same as `enroll-drive`/`pool-drives`.
+
+Auto-fixable (standard, well-documented, reversible — see
+[maximinus/fixes/](maximinus/fixes/)):
+
+- **`apt-broken-state`** — an interrupted dpkg/apt run left packages
+  half-configured. Runs the official remedy: `dpkg --configure -a` then
+  `apt-get install -f`.
+- **`dkms-headers-missing`** — DKMS modules (NVIDIA, VirtualBox, ...) are
+  registered but the matching `linux-headers-$(uname -r)` package isn't
+  installed, so they silently fail to build. Installs it.
+- **`time-sync-disabled`** — NTP is off, which causes confusing apt/TLS
+  failures from clock drift right after a fresh install. Runs
+  `timedatectl set-ntp true`.
+- **`grub-os-prober-disabled`** — a likely dual-boot OS (an NTFS partition)
+  was found but GRUB won't list it, because os-prober isn't installed or
+  is explicitly disabled in `/etc/default/grub`. Installs os-prober,
+  re-enables it, and runs `update-grub`.
+
+Guidance-only (surfaced via `scan`, not auto-fixed, because the fix itself
+carries real risk):
+
+- **PulseAudio + PipeWire both installed** — purging the old one while
+  audio is actively playing can interrupt the session.
+- **ufw installed but inactive** — enabling it without first allowing SSH
+  (if you rely on it) could lock you out of a remote session.
+
 ## Driver health checks
 
 `maximinus scan` doesn't just check whether a driver package is installed —
