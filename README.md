@@ -25,46 +25,65 @@ reserved as the one deliberate exception for error text). Requires
 PyGObject (`sudo apt install python3-gi`, already present on any Mint
 desktop). The full pipeline:
 
-**Setup → Progress → Judgment calls → Progress → Opt-in features → Reboot → back to Setup**
+**Credentials → Setup → Progress → Judgment calls → Progress → Opt-in features → Progress → Reboot**
 
+0. **Credentials** (first screen) — enter your sudo password once; it's
+   used immediately to authenticate (a real `sudo -k -S -v` call) and then
+   discarded, relying on sudo's own ticket cache the same way the CLI
+   does. Any encrypted drives found each get their own passphrase field,
+   held in memory for the rest of the run (never written to disk or
+   logged) for a later drive-enrollment step to use. See
+   [maximinus/gui/pages/credentials.py](maximinus/maximinus/gui/pages/credentials.py)
+   and [maximinus/gui/session.py](maximinus/maximinus/gui/session.py).
 1. **Setup** — every safe/automatic item (package installs, registered
    fixers) as a checkbox, all pre-selected (per the Risk Taking level, see
    below), editable before you commit.
 2. **Progress** — a status line stating exactly what's happening right
    now, above a progress bar, with a running log of completed steps below.
-   Reused for two separate passes (see step 4).
+   Reused for three separate passes (steps 4 and 6 too).
 3. **Judgment calls** — everything that needs a human decision (driver
    conflicts, audio/firewall changes), nothing pre-selected by default,
    each row showing the exact consequence text from `rules.yaml`. Clicking
    OK hands your selection straight to the progress screen.
-4. **Progress, again** — the judgment-call items you just opted into run
-   through the same progress screen as step 2 (skipped entirely if you
-   selected nothing).
+4. **Progress, again** — the judgment-call items you just opted into
+   (skipped entirely if you selected nothing).
 5. **Opt-in features** — storage pooling, on its own dedicated screen; see
    the section below. Skipped if nothing's available.
-6. **Reboot recommended** — a closing screen noting that some changes
+6. **Progress, a third time** — whichever opt-in features you turned on
+   (skipped if none).
+7. **Reboot recommended** — a closing screen noting that some changes
    (drivers, GRUB, swap, storage pools) only take full effect after a
-   restart. No "Restart Now" button — actually rebooting stays a decision
-   the user makes themselves, never something a screen offers to do for
-   them, especially while execution isn't wired up for real yet.
+   restart, with two buttons: **Reboot** and **Later**.
 
 A **Risk Taking** dropdown (Never/Low/Medium/High) on the setup screen
 controls what starts pre-checked there and on the judgment screen — see
 [maximinus/gui/risk.py](maximinus/maximinus/gui/risk.py) for the exact
-mapping. It never changes what's offered, only the defaults.
+mapping. It never changes what's offered, only the defaults. It has no
+effect on the opt-in features screen, which always starts unchecked.
 
-**Status: UI and navigation are complete; execution is simulated, not
-real yet.** Every screen is populated from the real
+**Status: everything up through the opt-in features screen is
+simulated — except the credentials screen's sudo check and the reboot
+button, which are both real.** Every screen is populated from the real
 `collect_facts()`/`build_plan()`, so what you see reflects this machine's
-actual state — but clicking "Start"/"OK"/"Enable" walks through the
-selection with a short delay instead of actually running
-`apt-get`/`fixer.apply()`. See [maximinus/gui/](maximinus/gui/) — wiring
-in real execution is a small, well-contained next step now that the full
-flow is settled. Any unexpected error along the way (not one of the
-project's own FixError/PoolError/EnrollmentError types) shows up as red
-text with the exception type and message rather than freezing the screen
-or vanishing into the terminal; see
-[maximinus/gui/errors.py](maximinus/maximinus/gui/errors.py).
+actual state, but clicking "Start"/"OK"/"Enable selected" on the way
+there walks through the selection with a short delay instead of actually
+running `apt-get`/`fixer.apply()`. The two exceptions:
+
+- The credentials screen's password field genuinely authenticates with
+  `sudo` (see above) — there's no meaningful "simulated" version of
+  checking a password.
+- The **Reboot** button on the final screen genuinely calls
+  `systemctl reboot`, the same mechanism a desktop's own restart menu
+  item uses (no sudo needed on a normal desktop session, via polkit).
+  It's gated behind an in-app confirmation dialog first, since this is
+  the one action anywhere in the GUI that's immediate and cannot be
+  undone. **Later** does not loop back to setup — it closes the program.
+  See [maximinus/gui/pages/reboot.py](maximinus/maximinus/gui/pages/reboot.py).
+
+Any unexpected error along the way (not one of the project's own
+FixError/PoolError/EnrollmentError types) shows up as red text with the
+exception type and message rather than freezing the screen or vanishing
+into the terminal; see [maximinus/gui/errors.py](maximinus/maximinus/gui/errors.py).
 
 ## How it works
 

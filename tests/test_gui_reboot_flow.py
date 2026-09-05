@@ -107,7 +107,7 @@ def test_window_reuses_progress_page_instance_for_both_passes():
         win.destroy()
 
 
-def test_reboot_page_done_button_returns_to_setup_with_notice():
+def test_reboot_page_later_button_quits_the_app():
     with patch("maximinus.gui.window.collect_facts", return_value=set()):
         from maximinus.gui.window import MaximinusApp, MaximinusWindow, _load_css
 
@@ -119,8 +119,8 @@ def test_reboot_page_done_button_returns_to_setup_with_notice():
         win._go_to_reboot([])
         assert win.stack.get_visible_child_name() == "reboot"
 
-        win.reboot_page.done_button.clicked()
-        assert win.stack.get_visible_child_name() == "setup"
-        assert win.setup_page._rescan_notice.get_visible()
+        with patch.object(app, "quit") as quit_mock:
+            win.reboot_page.later_button.clicked()
+        quit_mock.assert_called_once()
 
         win.destroy()

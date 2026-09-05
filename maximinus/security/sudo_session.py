@@ -25,6 +25,28 @@ def ensure_sudo() -> None:
         raise ElevationError("sudo authentication failed or was cancelled")
 
 
+def authenticate_with_password(password: str) -> bool:
+    """Verify `password` is a valid sudo password for the current user, by
+    actually using it. Unlike ensure_sudo(), this reads the password we
+    were given rather than letting sudo prompt at the terminal — for a GUI
+    password field, there is no terminal for sudo to prompt at.
+
+    `-k` first discards any cached ticket, so this genuinely tests the
+    password given rather than succeeding for free because an earlier
+    sudo call in this session already cached one. Returns True/False;
+    never raises for a wrong password. The password is only ever passed
+    to sudo's own stdin, never written to disk, logged, or returned.
+    """
+    result = subprocess.run(
+        ["sudo", "-k", "-S", "-v"],
+        input=password + "\n",
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    return result.returncode == 0
+
+
 def has_live_ticket() -> bool:
     """True if a sudo ticket is already cached (no prompt would be shown)."""
     result = subprocess.run(

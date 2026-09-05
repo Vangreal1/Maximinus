@@ -1,11 +1,11 @@
 """Main window: a Gtk.Stack cycling through
-Setup -> Progress -> Judgment -> Progress -> Features -> Reboot -> Setup.
+Credentials -> Setup -> Progress -> Judgment -> Progress -> Features
+-> Progress -> Reboot.
 
-The two Progress visits share one ProgressPage instance: the first pass
-handles the safe/automatic items chosen on the setup screen, the second
-handles whichever judgment-call items the user opted into on the screen
-after it. Each pass gets its own on_finished callback passed to
-ProgressPage.start(), so the same screen can continue on to a different
+The three Progress visits share one ProgressPage instance: one pass per
+screen that hands it a selection (setup, then judgment, then opt-in
+features), each with its own on_finished callback passed to
+ProgressPage.start() so the same screen can continue on to a different
 place each time.
 """
 
@@ -15,14 +15,17 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gdk, Gio, Gtk  # noqa: E402
 
 from ..detectors import collect_facts
+from ..detectors.drives import list_luks_devices
 from ..engine import build_plan
 from ..fixes import FIXERS
 from ..planning import classify_plan
+from .pages.credentials import CredentialsPage
 from .pages.features import FeaturesPage
 from .pages.judgment import JudgmentPage
 from .pages.progress import ProgressPage
 from .pages.reboot import RebootPage
 from .pages.setup import SetupPage
+from .session import Session
 
 CSS_PATH = __file__.rsplit("/", 1)[0] + "/theme.css"
 
@@ -44,12 +47,16 @@ class MaximinusWindow(Gtk.ApplicationWindow):
         self._facts = collect_facts()
         self._plan = build_plan(self._facts)
         self._classification = classify_plan(self._plan, FIXERS)
+        self._session = Session()
 
         self.stack = Gtk.Stack()
         self.stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
         self.stack.set_transition_duration(150)
         self.add(self.stack)
 
+        self.credentials_page = CredentialsPage(
+            list_luks_devices(), self._session, on_continue=self._go_to_setup
+        )
         self.setup_page = SetupPage(self._classification, on_start=self._go_to_progress)
         self.progress_page = ProgressPage(on_finished=self._go_to_judgment)
         self.judgment_page = JudgmentPage(
@@ -61,18 +68,22 @@ class MaximinusWindow(Gtk.ApplicationWindow):
         # decision on its own screen, separate from both setup and
         # judgment calls. See maximinus/planning.py's OPT_IN_FEATURE_FACTS.
         self.features_page = FeaturesPage(
-            self._classification.opt_in_features, on_done=self._go_to_reboot
+            self._classification.opt_in_features, on_done=self._go_to_progress_for_features
         )
-        self.reboot_page = RebootPage(on_done=self._go_to_done)
+        self.reboot_page = RebootPage(on_later=self._quit)
 
+        self.stack.add_named(self.credentials_page, "credentials")
         self.stack.add_named(self.setup_page, "setup")
         self.stack.add_named(self.progress_page, "progress")
         self.stack.add_named(self.judgment_page, "judgment")
         self.stack.add_named(self.features_page, "features")
         self.stack.add_named(self.reboot_page, "reboot")
 
-        self.stack.set_visible_child_name("setup")
+        self.stack.set_visible_child_name("credentials")
         self._risk_level = self.setup_page.get_risk_level()
+
+    def _go_to_setup(self):
+        self.stack.set_visible_child_name("setup")
 
     def _go_to_progress(self, selected_items):
         """First pass: the safe/automatic items chosen on the setup screen."""
@@ -103,12 +114,24 @@ class MaximinusWindow(Gtk.ApplicationWindow):
         else:
             self._go_to_reboot([])
 
+    def _go_to_progress_for_features(self, selected_items):
+        """Third pass: whichever opt-in features the user turned on."""
+        if not selected_items:
+            self._go_to_reboot([])
+            return
+        tagged = [("feature", item) for item in selected_items]
+        self.progress_page.start(tagged, on_finished=lambda: self._go_to_reboot([]))
+        self.stack.set_visible_child_name("progress")
+
     def _go_to_reboot(self, _applied_items):
         self.stack.set_visible_child_name("reboot")
 
-    def _go_to_done(self):
-        self.stack.set_visible_child_name("setup")
-        self.setup_page.show_rescan_notice()
+    def _quit(self):
+        app = self.get_application()
+        if app is not None:
+            app.quit()
+        else:
+            self.destroy()
 
 
 class MaximinusApp(Gtk.Application):

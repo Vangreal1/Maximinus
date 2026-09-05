@@ -1,9 +1,10 @@
 """Drive the GUI through its full
-Setup -> Progress -> Judgment -> Progress -> Reboot -> Setup cycle on a
-real GTK main loop, with scan data mocked to a small known set, and prove
-that nothing actually executes: subprocess.run is patched to raise if
-called, so any accidental real apt-get/sudo/cryptsetup call fails the
-test immediately instead of silently touching the machine.
+Setup -> Progress -> Judgment -> Progress -> Reboot pipeline (past the
+credentials screen, which has its own dedicated tests) on a real GTK main
+loop, with scan data mocked to a small known set, and prove that nothing
+actually executes: subprocess.run is patched to raise if called, so any
+accidental real apt-get/sudo/cryptsetup call fails the test immediately
+instead of silently touching the machine.
 """
 
 import time
@@ -52,7 +53,9 @@ def _no_real_commands_allowed(*args, **kwargs):
 
 def test_full_flow_never_shells_out(tmp_path):
     with patch("subprocess.run", side_effect=_no_real_commands_allowed):
-        with patch("maximinus.gui.window.collect_facts", return_value=_fake_plan_facts()):
+        with patch("maximinus.gui.window.collect_facts", return_value=_fake_plan_facts()), patch(
+            "maximinus.gui.window.list_luks_devices", return_value=[]
+        ):
             from maximinus.gui.window import MaximinusApp, MaximinusWindow, _load_css
 
             _load_css()
@@ -60,6 +63,7 @@ def test_full_flow_never_shells_out(tmp_path):
             win = MaximinusWindow(app)
             win.show_all()
             win.present()
+            win._go_to_setup()
 
             # --- Setup screen: expect exactly the 2 safe items ---
             setup = win.setup_page
@@ -90,15 +94,14 @@ def test_full_flow_never_shells_out(tmp_path):
             # set, so it lands directly on the reboot screen. ---
             _pump_until(lambda: win.stack.get_visible_child_name() == "reboot")
 
-            win.reboot_page.done_button.clicked()
-            assert win.stack.get_visible_child_name() == "setup"
-
             win.destroy()
 
 
 def test_declining_all_setup_items_skips_straight_to_judgment():
     with patch("subprocess.run", side_effect=_no_real_commands_allowed):
-        with patch("maximinus.gui.window.collect_facts", return_value=_fake_plan_facts()):
+        with patch("maximinus.gui.window.collect_facts", return_value=_fake_plan_facts()), patch(
+            "maximinus.gui.window.list_luks_devices", return_value=[]
+        ):
             from maximinus.gui.window import MaximinusApp, MaximinusWindow, _load_css
 
             _load_css()
@@ -106,6 +109,7 @@ def test_declining_all_setup_items_skips_straight_to_judgment():
             win = MaximinusWindow(app)
             win.show_all()
             win.present()
+            win._go_to_setup()
 
             for row, _kind, _payload in win.setup_page._rows:
                 row.check.set_active(False)
@@ -119,7 +123,9 @@ def test_declining_all_setup_items_skips_straight_to_judgment():
 
 def test_judgment_ok_with_nothing_selected_skips_progress_and_goes_to_reboot():
     with patch("subprocess.run", side_effect=_no_real_commands_allowed):
-        with patch("maximinus.gui.window.collect_facts", return_value=_fake_plan_facts()):
+        with patch("maximinus.gui.window.collect_facts", return_value=_fake_plan_facts()), patch(
+            "maximinus.gui.window.list_luks_devices", return_value=[]
+        ):
             from maximinus.gui.window import MaximinusApp, MaximinusWindow, _load_css
 
             _load_css()
@@ -127,6 +133,7 @@ def test_judgment_ok_with_nothing_selected_skips_progress_and_goes_to_reboot():
             win = MaximinusWindow(app)
             win.show_all()
             win.present()
+            win._go_to_setup()
 
             win.setup_page.start_button.clicked()
             _pump_until(lambda: win.stack.get_visible_child_name() == "judgment")

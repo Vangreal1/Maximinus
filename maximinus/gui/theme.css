@@ -96,6 +96,28 @@ window {
     border: 1px solid #555555;
 }
 
+/* ---- Text entry fields (password fields, etc.) ---- */
+entry {
+    background-color: #161616;
+    background-image: none;
+    color: #e2e2e2;
+    caret-color: #e2e2e2;
+    border: 1px solid #464646;
+    border-radius: 0;
+    padding: 5px 8px;
+    box-shadow: none;
+}
+
+entry:focus {
+    border-color: #8a8a8a;
+    box-shadow: none;
+}
+
+entry selection {
+    background-color: #4a4a4a;
+    color: #ffffff;
+}
+
 /* ---- Buttons: flat, square, subtle border ---- */
 button {
     background-color: #333333;

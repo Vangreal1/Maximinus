@@ -103,11 +103,11 @@ def test_features_screen_shown_and_unchecked_even_at_high_risk():
         win.destroy()
 
 
-def test_enabling_a_feature_goes_to_reboot_screen():
+def test_enabling_a_feature_routes_through_progress_to_reboot_screen():
     with patch("subprocess.run", side_effect=AssertionError("no real commands in this test")):
         with patch(
             "maximinus.gui.window.collect_facts", return_value={"storage.poolable"}
-        ):
+        ), patch("maximinus.gui.window.list_luks_devices", return_value=[]):
             from maximinus.gui.window import MaximinusApp, MaximinusWindow, _load_css
 
             _load_css()
@@ -121,11 +121,13 @@ def test_enabling_a_feature_goes_to_reboot_screen():
             win.features_page._cards[0].check.set_active(True)
             win.features_page.enable_button.clicked()
 
-            _pump_until(lambda: win.stack.get_visible_child_name() == "reboot")
+            # Enabling now routes through the shared progress screen
+            # (a third pass, same as setup and judgment items) rather
+            # than applying inline on the features screen itself.
+            assert win.stack.get_visible_child_name() == "progress"
+            assert win.progress_page._queue == [("feature", win.features_page._cards[0].item)]
 
-            # And from there, Done returns to setup.
-            win.reboot_page.done_button.clicked()
-            assert win.stack.get_visible_child_name() == "setup"
+            _pump_until(lambda: win.stack.get_visible_child_name() == "reboot")
             win.destroy()
 
 

@@ -64,13 +64,6 @@ class SetupPage(Gtk.Box):
         header.pack_start(subtitle, False, False, 0)
         self.pack_start(header, False, False, 0)
 
-        self._rescan_notice = Gtk.Label(xalign=0)
-        self._rescan_notice.get_style_context().add_class("header-subtitle")
-        self._rescan_notice.set_no_show_all(True)
-        self._rescan_notice.set_margin_start(10)
-        self._rescan_notice.set_margin_top(4)
-        self.pack_start(self._rescan_notice, False, False, 0)
-
         toolbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         toolbar.set_margin_start(10)
         toolbar.set_margin_end(10)
@@ -189,9 +182,3 @@ class SetupPage(Gtk.Box):
     def _on_start_clicked(self, _button):
         selected = [(kind, payload) for row, kind, payload in self._rows if row.selected]
         self._on_start(selected)
-
-    def show_rescan_notice(self):
-        self._rescan_notice.set_text(
-            "Finished. Close and reopen this window to check for anything new."
-        )
-        self._rescan_notice.show()

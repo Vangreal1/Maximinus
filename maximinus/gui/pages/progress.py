@@ -47,6 +47,8 @@ def _describe(kind, payload):
         return f"Installing {', '.join(packages)}", f"Reason: {payload.reason}."
     if kind == "judgment":
         return f"Resolving: {payload.reason}", ""
+    if kind == "feature":
+        return f"Enabling: {payload.reason}", ""
     return f"Fixing: {payload.summary}", ""
 
 
