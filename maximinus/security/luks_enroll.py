@@ -23,7 +23,7 @@ import stat
 import subprocess
 import tempfile
 
-from .root_files import read_root_file, write_root_file
+from .root_files import RootFileError, read_root_file, write_root_file
 from .sudo_session import run_privileged
 
 KEY_DIR = "/etc/maximinus/keys"
@@ -87,17 +87,32 @@ def enroll(device: str, passphrase: str | None = None) -> str:
                 f"cryptsetup luksAddKey failed: {add_key.stderr.strip()}"
             )
 
-        run_privileged(["mkdir", "-p", "-m", "0700", KEY_DIR])
-        dest_keyfile = os.path.join(KEY_DIR, f"{uuid}.key")
-        run_privileged(
-            ["install", "-m", "0400", "-o", "root", "-g", "root", tmp_keyfile, dest_keyfile]
+        mkdir_result = run_privileged(
+            ["mkdir", "-p", "-m", "0700", KEY_DIR], capture_output=True, text=True, check=False
         )
+        if mkdir_result.returncode != 0:
+            raise EnrollmentError(f"failed to create {KEY_DIR}: {mkdir_result.stderr.strip()}")
+
+        dest_keyfile = os.path.join(KEY_DIR, f"{uuid}.key")
+        install_result = run_privileged(
+            ["install", "-m", "0400", "-o", "root", "-g", "root", tmp_keyfile, dest_keyfile],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if install_result.returncode != 0:
+            raise EnrollmentError(
+                f"failed to install keyfile at {dest_keyfile}: {install_result.stderr.strip()}"
+            )
     finally:
         passphrase = None  # best-effort: drop the reference promptly
         if os.path.exists(tmp_keyfile):
             os.unlink(tmp_keyfile)
 
-    _register_crypttab(uuid, dest_keyfile)
+    try:
+        _register_crypttab(uuid, dest_keyfile)
+    except RootFileError as exc:
+        raise EnrollmentError(str(exc)) from exc
     return uuid
 
 

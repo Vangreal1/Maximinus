@@ -37,5 +37,11 @@ def has_live_ticket() -> bool:
 
 
 def run_privileged(cmd, **kwargs):
-    """Run cmd (a list) under sudo, assuming ensure_sudo() already ran."""
-    return subprocess.run(["sudo", *cmd], check=True, **kwargs)
+    """Run cmd (a list) under sudo, assuming ensure_sudo() already ran.
+
+    Defaults to check=True (raise on failure) but respects an explicit
+    check=False from the caller — several callers intentionally inspect
+    .returncode themselves instead of catching CalledProcessError.
+    """
+    kwargs.setdefault("check", True)
+    return subprocess.run(["sudo", *cmd], **kwargs)

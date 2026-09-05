@@ -10,7 +10,7 @@ by update-grub actually reading the result, so a mistake here is caught
 immediately (update-grub fails loudly) rather than silently breaking boot.
 """
 
-from ..security.root_files import read_root_file, write_root_file
+from ..security.root_files import RootFileError, read_root_file, write_root_file
 from ..security.sudo_session import run_privileged
 from .errors import FixError
 from .registry import Fixer
@@ -44,7 +44,10 @@ def apply() -> None:
     if install.returncode != 0:
         raise FixError(f"failed to install os-prober: {install.stderr.strip()}")
 
-    _ensure_os_prober_enabled()
+    try:
+        _ensure_os_prober_enabled()
+    except RootFileError as exc:
+        raise FixError(str(exc)) from exc
 
     update = run_privileged(
         ["update-grub"], capture_output=True, text=True, check=False

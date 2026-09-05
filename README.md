@@ -78,6 +78,29 @@ carries real risk):
 - **ufw installed but inactive** — enabling it without first allowing SSH
   (if you rely on it) could lock you out of a remote session.
 
+## `maximinus cleanup` — sweep everything in one pass
+
+Running `scan` and picking through individual `fix <id>`/`enroll-drive`/
+`pool-drives` commands one at a time works, but `maximinus cleanup` is the
+one command meant to be run at any point — right after a fresh install, or
+months later to catch anything new — to check every condition this tool
+knows about and settle whatever's safe to settle automatically:
+
+- Every recommended package (drivers, filesystem support tools) gets
+  installed.
+- Every registered fix (`apt-broken-state`, `dkms-headers-missing`,
+  `time-sync-disabled`, `grub-os-prober-disabled`) gets applied.
+- Everything that genuinely needs a human call — a NVIDIA driver conflict
+  that requires picking which version to keep, an audio server conflict
+  that could interrupt a live session, ufw activation that could lock out
+  SSH — is listed with its exact remediation command, not touched.
+
+One confirmation covers the whole batch (skip it with `-y`), and one sudo
+prompt covers every privileged step, same as everywhere else in Maximinus.
+It's idempotent and safe to re-run any time: every check re-reads live
+system state, so anything already fixed, already installed, or already
+pooled is simply left alone on the next pass.
+
 ## Driver health checks
 
 `maximinus scan` doesn't just check whether a driver package is installed —

@@ -14,14 +14,19 @@ from .detectors.drives import list_luks_devices
 from .engine import build_plan
 from .fixes import FIXERS, FixError
 from .security.luks_enroll import EnrollmentError, enroll
-from .security.sudo_session import ElevationError, ensure_sudo
+from .security.sudo_session import ElevationError, ensure_sudo, run_privileged
 from .storage.discovery import discover_category_branches
 from .storage.pool import PoolError, build_pool, check_boot_safety, is_pooled
 
 
 def _plan_to_dicts(plan):
     return [
-        {"rule_id": item.rule_id, "reason": item.reason, "actions": item.actions}
+        {
+            "rule_id": item.rule_id,
+            "reason": item.reason,
+            "actions": item.actions,
+            "when": item.when,
+        }
         for item in plan
     ]
 
@@ -201,6 +206,132 @@ def _cmd_fix(args):
     return 0
 
 
+def _classify_plan_for_cleanup(plan):
+    """Split a plan into what cleanup can safely do unattended (installing
+    a recommended package, or running a registered Fixer) versus what needs
+    a human decision (a manual_step with no matching Fixer — e.g. resolving
+    a driver conflict, touching the firewall)."""
+    fixer_by_fact = {fixer.fact: fixer for fixer in FIXERS.values()}
+    apt_packages = []
+    apt_items = []
+    fixers_to_run = []
+    seen_fixer_ids = set()
+    left_for_you = []
+
+    for item in plan:
+        item_packages = [
+            pkg
+            for action in item.actions
+            if action.get("type") == "apt_install"
+            for pkg in action["packages"]
+        ]
+        if item_packages:
+            apt_items.append(item)
+            apt_packages.extend(item_packages)
+            continue
+
+        matched = [fixer_by_fact[fact] for fact in item.when if fact in fixer_by_fact]
+        if matched:
+            for fixer in matched:
+                if fixer.id not in seen_fixer_ids:
+                    fixers_to_run.append(fixer)
+                    seen_fixer_ids.add(fixer.id)
+            continue
+
+        left_for_you.append(item)
+
+    # dedupe packages, keep a stable order
+    seen_pkgs = set()
+    unique_packages = [p for p in apt_packages if not (p in seen_pkgs or seen_pkgs.add(p))]
+    return apt_items, unique_packages, fixers_to_run, left_for_you
+
+
+def _cmd_cleanup(args):
+    """Sweep every detected condition: install what's recommended, apply
+    every registered fix, and report everything else for the user to decide
+    on. Safe to run repeatedly — every check here re-evaluates live system
+    state, so anything already fixed or already installed is left alone."""
+    facts = collect_facts()
+    plan = build_plan(facts)
+
+    if not plan:
+        print("Checked everything — nothing to do, this machine is clean.")
+        return 0
+
+    apt_items, packages, fixers_to_run, left_for_you = _classify_plan_for_cleanup(plan)
+
+    print(f"Checked {len(facts)} condition(s); {len(plan)} item(s) need attention.")
+
+    if packages:
+        print(f"\nWill install ({len(packages)} package(s)): {', '.join(packages)}")
+        for item in apt_items:
+            print(f"  [{item.rule_id}] {item.reason}")
+
+    if fixers_to_run:
+        print(f"\nWill fix automatically ({len(fixers_to_run)}):")
+        for fixer in fixers_to_run:
+            print(f"  [{fixer.id}] {fixer.summary}")
+
+    if left_for_you:
+        print(f"\nLeft for you to decide ({len(left_for_you)}) — needs judgment or carries real risk to automate:")
+        for item in left_for_you:
+            print(f"\n  [{item.rule_id}] {item.reason}")
+            for action in item.actions:
+                _print_action(action)
+
+    if not packages and not fixers_to_run:
+        print("\nNothing safe to auto-fix right now.")
+        return 0
+
+    if not args.yes:
+        answer = input(
+            f"\nProceed with {'installing packages and ' if packages else ''}"
+            f"{len(fixers_to_run)} fix(es) now? [y/N] "
+        )
+        if answer.strip().lower() not in ("y", "yes"):
+            print("Aborted, nothing changed.")
+            return 1
+
+    try:
+        ensure_sudo()
+    except ElevationError as exc:
+        print(f"Failed: {exc}", file=sys.stderr)
+        return 1
+
+    failures = []
+
+    if packages:
+        result = run_privileged(
+            ["apt-get", "install", "-y", *packages],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            print(f"  apt install: FAILED — {result.stderr.strip()}", file=sys.stderr)
+            failures.append("apt-install")
+        else:
+            print(f"  apt install: done ({', '.join(packages)}).")
+
+    for fixer in fixers_to_run:
+        try:
+            fixer.apply()
+        except FixError as exc:
+            print(f"  [{fixer.id}]: FAILED — {exc}", file=sys.stderr)
+            failures.append(fixer.id)
+            continue
+        print(f"  [{fixer.id}]: done.")
+
+    if failures:
+        print(f"\n{len(failures)} fix(es) failed: {', '.join(failures)}")
+        return 1
+
+    print("\nAll automatic fixes applied.")
+    if left_for_you:
+        print(f"{len(left_for_you)} item(s) above still need your judgment.")
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="maximinus",
@@ -245,6 +376,15 @@ def main(argv=None):
         "-y", "--yes", action="store_true", help="don't prompt for confirmation"
     )
     fix_parser.set_defaults(func=_cmd_fix)
+
+    cleanup_parser = subparsers.add_parser(
+        "cleanup",
+        help="check every known condition, auto-fix what's safe, and list what still needs your judgment",
+    )
+    cleanup_parser.add_argument(
+        "-y", "--yes", action="store_true", help="don't prompt for confirmation"
+    )
+    cleanup_parser.set_defaults(func=_cmd_cleanup)
 
     args = parser.parse_args(argv)
     if args.command is None:

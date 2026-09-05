@@ -11,6 +11,7 @@ class PlanItem:
     rule_id: str
     reason: str
     actions: list = field(default_factory=list)
+    when: list = field(default_factory=list)
 
 
 def load_rules(path=None):
@@ -34,6 +35,7 @@ def build_plan(facts, rules=None):
                     rule_id=rule["id"],
                     reason=rule.get("reason", ""),
                     actions=rule.get("actions", []),
+                    when=rule.get("when", []),
                 )
             )
     return plan

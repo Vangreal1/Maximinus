@@ -15,7 +15,7 @@ import os
 import shutil
 import subprocess
 
-from ..security.root_files import read_root_file, write_root_file
+from ..security.root_files import RootFileError, read_root_file, write_root_file
 from ..security.sudo_session import run_privileged
 
 FSTAB = "/etc/fstab"
@@ -136,7 +136,10 @@ def build_pool(mount_path: str, branches: list[str], policy: str = "mfs") -> Non
     if not fstab.endswith("\n") and fstab:
         fstab += "\n"
     fstab += line
-    write_root_file(FSTAB, fstab, mode="0644")
+    try:
+        write_root_file(FSTAB, fstab, mode="0644")
+    except RootFileError as exc:
+        raise PoolError(str(exc)) from exc
     run_privileged(["systemctl", "daemon-reload"], capture_output=True, check=False)
 
     result = run_privileged(
@@ -156,4 +159,7 @@ def unpool(mount_path: str) -> None:
         for line in fstab.splitlines(keepends=True)
         if not (line.split() and len(line.split()) > 1 and line.split()[1] == mount_path)
     ]
-    write_root_file(FSTAB, "".join(kept), mode="0644")
+    try:
+        write_root_file(FSTAB, "".join(kept), mode="0644")
+    except RootFileError as exc:
+        raise PoolError(str(exc)) from exc
