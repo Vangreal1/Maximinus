@@ -176,7 +176,23 @@ package, blacklisting nouveau, enrolling a MOK key) can affect whether the
 display comes up at all, so it's reported as a specific command for you to
 run, never executed automatically.
 
-## Drive integration (storage pooling)
+## Drive integration (storage pooling) — a separate, explicit opt-in
+
+Storage pooling changes an ongoing part of how your files behave (every
+time you open a merged folder from now on, not just once), so it's kept
+out of `scan`, `cleanup`, and the ordinary judgment-call list entirely.
+It only ever runs when you explicitly ask for it:
+
+- **CLI**: `maximinus pool-drives` is its own command, never bundled into
+  `cleanup`. It prints a full explanation of exactly what will change
+  before asking for confirmation, not just a one-line description.
+- **`cleanup`**: if pooling is available, it's listed in its own
+  clearly-separated "Optional features" section, explicitly called out as
+  *not* included in whatever `cleanup` is about to do.
+- **GUI**: pooling gets its own screen after the judgment-call screen,
+  never mixed into that list. Unlike judgment calls, it starts unchecked
+  at every Risk Taking level, including High — turning it on always
+  requires reading the explanation and checking the box yourself.
 
 `maximinus pool-drives` makes several drives *act like* one pool of
 storage, without moving or copying a single file:

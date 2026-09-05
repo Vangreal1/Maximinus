@@ -74,6 +74,7 @@ def _build_setup_page():
         fixers_to_run=[FakeFixer()],
         fixer_items=[fixer_item],
         left_for_you=[],
+        opt_in_features=[],
     )
     return SetupPage(classification, on_start=lambda *_: None)
 

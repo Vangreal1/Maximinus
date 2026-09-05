@@ -131,20 +131,41 @@ def _cmd_pool_drives(args):
         print("Nothing new to pool.")
         return 0
 
+    print(
+        "\nWhat this actually does:\n"
+        "  - Your files are not moved, copied, or reorganized. Each folder listed\n"
+        "    above stays exactly where it already is on disk.\n"
+        "  - Instead, a tool called mergerfs is installed and used to create a\n"
+        "    combined view: it mounts itself over the folder shown above (e.g.\n"
+        "    ~/Downloads), with that folder's own current contents included as one\n"
+        "    of the branches. So after this, opening that folder shows the combined\n"
+        "    contents of every branch listed, as if they were one folder.\n"
+        "  - Free space reported for that folder becomes the sum across every\n"
+        "    branch, and new files are written to whichever branch currently has\n"
+        "    the most room.\n"
+        "  - This is an ongoing change, not a one-time fix: every time you open\n"
+        "    one of these folders from now on, you'll see the merged view, not\n"
+        "    just what's on this drive.\n"
+        "  - It's reversible. Unmounting the pool (or removing the /etc/fstab line\n"
+        "    this adds and rebooting) instantly returns the folder to exactly what\n"
+        "    it looked like before, because nothing on disk was ever moved.\n"
+    )
+
     all_branches = [b for _, branches in plans.values() for b in branches]
     boot_warnings = check_boot_safety(all_branches)
     if boot_warnings:
-        print("\nNote (pooling is still safe to boot with either way — see below):")
+        print("Note (pooling is still safe to boot with either way, see below):")
         for warning in boot_warnings:
             print(f"  - {warning}")
+        print()
     print(
-        "\nEach pool mount is set with nofail and per-branch boot ordering, so a "
-        "missing or slow branch at boot can never hang or fail startup — the pool "
-        "just comes up without that branch until it's mounted."
+        "Each pool mount is set with nofail and per-branch boot ordering, so a "
+        "missing or slow branch at boot can never hang or fail startup. The pool "
+        "just comes up without that branch until it's mounted.\n"
     )
 
     if not args.yes:
-        answer = input("\nProceed? This edits /etc/fstab and mounts the pools now. [y/N] ")
+        answer = input("Proceed? This edits /etc/fstab and mounts the pools now. [y/N] ")
         if answer.strip().lower() not in ("y", "yes"):
             print("Aborted, nothing changed.")
             return 1
@@ -224,6 +245,7 @@ def _cmd_cleanup(args):
     packages = classification.packages
     fixers_to_run = classification.fixers_to_run
     left_for_you = classification.left_for_you
+    opt_in_features = classification.opt_in_features
 
     print(f"Checked {len(facts)} condition(s); {len(plan)} item(s) need attention.")
 
@@ -240,6 +262,18 @@ def _cmd_cleanup(args):
     if left_for_you:
         print(f"\nLeft for you to decide ({len(left_for_you)}) — needs judgment or carries real risk to automate:")
         for item in left_for_you:
+            print(f"\n  [{item.rule_id}] {item.reason}")
+            for action in item.actions:
+                _print_action(action)
+
+    if opt_in_features:
+        print(
+            f"\nOptional features available ({len(opt_in_features)}) — not included above, "
+            "and not run by this command at all. These change how your system behaves on an "
+            "ongoing basis rather than fixing a one-off problem, so they need their own explicit "
+            "decision:"
+        )
+        for item in opt_in_features:
             print(f"\n  [{item.rule_id}] {item.reason}")
             for action in item.actions:
                 _print_action(action)
@@ -294,6 +328,8 @@ def _cmd_cleanup(args):
     print("\nAll automatic fixes applied.")
     if left_for_you:
         print(f"{len(left_for_you)} item(s) above still need your judgment.")
+    if opt_in_features:
+        print(f"{len(opt_in_features)} optional feature(s) above are still waiting on your decision.")
     return 0
 
 

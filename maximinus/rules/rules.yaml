@@ -213,7 +213,22 @@
   when: [storage.poolable]
   actions:
     - type: manual_step
-      description: "Run `maximinus pool-drives` to merge matching folders (e.g. Downloads) across your drives into one combined view with shared free space. No files are moved."
+      description: >-
+        This is a standalone feature, not a one-off fix, and it changes
+        an ongoing part of how your files behave, so it's kept separate
+        from everything else here and requires its own explicit decision.
+        Your files are never moved, copied, or reorganized. What changes
+        is that a folder like Downloads, which exists on more than one of
+        your drives, gets merged into one combined view: opening it shows
+        the contents of every matching folder at once, and the free space
+        it reports is the sum across all of them. This uses a tool called
+        mergerfs, mounted directly over the existing folder, so nothing on
+        disk moves and nothing is hidden, it's just now a merged view.
+        It's reversible at any time: unmounting it (or removing the
+        `/etc/fstab` line it adds and rebooting) instantly returns the
+        folder to exactly what it looked like before. Run `maximinus
+        pool-drives` to review the specific folders found on this machine
+        and decide.
   reason: "Multiple drives/partitions with matching folder structure detected"
 
 - id: laptop-power-management

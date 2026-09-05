@@ -77,7 +77,12 @@ def test_setup_page_selection_and_start_callback(tmp_path):
         when=["fs.exfat_present"],
     )
     classification = Classification(
-        apt_items=[item], packages=["exfatprogs"], fixers_to_run=[], fixer_items=[], left_for_you=[]
+        apt_items=[item],
+        packages=["exfatprogs"],
+        fixers_to_run=[],
+        fixer_items=[],
+        left_for_you=[],
+        opt_in_features=[],
     )
 
     captured = {}

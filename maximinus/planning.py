@@ -9,22 +9,34 @@ from dataclasses import dataclass
 from .engine import PlanItem
 from .fixes.registry import Fixer
 
+# Facts that trigger a standalone, opt-in feature rather than an ordinary
+# judgment call. These aren't "should I apply this fix, yes or no" — they
+# change how the system behaves in an ongoing way (here: making several
+# drives act like one, which changes what a folder like Downloads actually
+# shows you). That's different enough from "resolve this driver conflict"
+# that it gets pulled out of the regular judgment list entirely and needs
+# its own explicit, separately-explained decision. Add more facts here as
+# more feature-shaped (rather than fix-shaped) capabilities are added.
+OPT_IN_FEATURE_FACTS = {"storage.poolable"}
+
 
 @dataclass
 class Classification:
-    apt_items: list       # PlanItems whose action is installing a package
-    packages: list         # deduped package names across apt_items
-    fixers_to_run: list     # Fixer objects whose condition is currently true
-    fixer_items: list        # the PlanItem that triggered each fixer (same order)
-    left_for_you: list        # PlanItems with no safe automatic handling
+    apt_items: list          # PlanItems whose action is installing a package
+    packages: list             # deduped package names across apt_items
+    fixers_to_run: list          # Fixer objects whose condition is currently true
+    fixer_items: list              # the PlanItem that triggered each fixer (same order)
+    left_for_you: list               # PlanItems that need an ordinary judgment call
+    opt_in_features: list              # PlanItems for standalone opt-in features
 
 
 def classify_plan(plan: list[PlanItem], fixers: dict[str, Fixer]) -> Classification:
-    """Sort `plan` into three groups: install a recommended package, run a
-    registered fixer, or leave it for the user. A manual_step only ends up
-    in the third group if none of the registered fixers cover its fact,
-    which is true for things like a driver conflict or a firewall change
-    that need a judgment call, not an automatic fix.
+    """Sort `plan` into four groups: install a recommended package, run a
+    registered fixer, leave it for an ordinary judgment call, or set it
+    aside as a standalone opt-in feature (see OPT_IN_FEATURE_FACTS). A
+    manual_step only becomes a judgment call if none of the registered
+    fixers cover its fact and it isn't one of the opt-in features, which is
+    true for things like a driver conflict or a firewall change.
     """
     fixer_by_fact = {fixer.fact: fixer for fixer in fixers.values()}
     apt_packages = []
@@ -33,6 +45,7 @@ def classify_plan(plan: list[PlanItem], fixers: dict[str, Fixer]) -> Classificat
     fixer_items = []
     seen_fixer_ids = set()
     left_for_you = []
+    opt_in_features = []
 
     for item in plan:
         item_packages = [
@@ -44,6 +57,10 @@ def classify_plan(plan: list[PlanItem], fixers: dict[str, Fixer]) -> Classificat
         if item_packages:
             apt_items.append(item)
             apt_packages.extend(item_packages)
+            continue
+
+        if OPT_IN_FEATURE_FACTS & set(item.when):
+            opt_in_features.append(item)
             continue
 
         matched = [fixer_by_fact[fact] for fact in item.when if fact in fixer_by_fact]
@@ -59,4 +76,6 @@ def classify_plan(plan: list[PlanItem], fixers: dict[str, Fixer]) -> Classificat
 
     seen_pkgs = set()
     unique_packages = [p for p in apt_packages if not (p in seen_pkgs or seen_pkgs.add(p))]
-    return Classification(apt_items, unique_packages, fixers_to_run, fixer_items, left_for_you)
+    return Classification(
+        apt_items, unique_packages, fixers_to_run, fixer_items, left_for_you, opt_in_features
+    )

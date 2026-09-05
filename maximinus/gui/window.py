@@ -9,6 +9,7 @@ from ..detectors import collect_facts
 from ..engine import build_plan
 from ..fixes import FIXERS
 from ..planning import classify_plan
+from .pages.features import FeaturesPage
 from .pages.judgment import JudgmentPage
 from .pages.progress import ProgressPage
 from .pages.setup import SetupPage
@@ -42,12 +43,21 @@ class MaximinusWindow(Gtk.ApplicationWindow):
         self.setup_page = SetupPage(self._classification, on_start=self._go_to_progress)
         self.progress_page = ProgressPage(on_finished=self._go_to_judgment)
         self.judgment_page = JudgmentPage(
-            self._classification.left_for_you, on_done=self._go_to_done
+            self._classification.left_for_you, on_done=self._go_to_features_or_done
+        )
+        # Opt-in features (e.g. storage pooling) are never pre-checked, at
+        # any Risk Taking level: turning one on changes ongoing behavior,
+        # not a one-off condition, so it always needs its own explicit
+        # decision on its own screen, separate from both setup and
+        # judgment calls. See maximinus/planning.py's OPT_IN_FEATURE_FACTS.
+        self.features_page = FeaturesPage(
+            self._classification.opt_in_features, on_done=self._go_to_done
         )
 
         self.stack.add_named(self.setup_page, "setup")
         self.stack.add_named(self.progress_page, "progress")
         self.stack.add_named(self.judgment_page, "judgment")
+        self.stack.add_named(self.features_page, "features")
 
         self.stack.set_visible_child_name("setup")
         self._risk_level = self.setup_page.get_risk_level()
@@ -60,6 +70,12 @@ class MaximinusWindow(Gtk.ApplicationWindow):
     def _go_to_judgment(self):
         self.judgment_page.apply_risk_default(self._risk_level)
         self.stack.set_visible_child_name("judgment")
+
+    def _go_to_features_or_done(self, _applied_items):
+        if self._classification.opt_in_features:
+            self.stack.set_visible_child_name("features")
+        else:
+            self._go_to_done([])
 
     def _go_to_done(self, _applied_items):
         self.stack.set_visible_child_name("setup")
