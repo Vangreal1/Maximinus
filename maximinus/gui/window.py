@@ -50,12 +50,15 @@ class MaximinusWindow(Gtk.ApplicationWindow):
         self.stack.add_named(self.judgment_page, "judgment")
 
         self.stack.set_visible_child_name("setup")
+        self._risk_level = self.setup_page.get_risk_level()
 
     def _go_to_progress(self, selected_items):
+        self._risk_level = self.setup_page.get_risk_level()
         self.progress_page.start(selected_items)
         self.stack.set_visible_child_name("progress")
 
     def _go_to_judgment(self):
+        self.judgment_page.apply_risk_default(self._risk_level)
         self.stack.set_visible_child_name("judgment")
 
     def _go_to_done(self, _applied_items):

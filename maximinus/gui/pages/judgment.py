@@ -15,6 +15,8 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
+from .. import risk
+
 
 class JudgmentRow(Gtk.Box):
     def __init__(self, item):
@@ -123,6 +125,16 @@ class JudgmentPage(Gtk.Box):
 
         for row in self._rows:
             row.check.connect("toggled", lambda *_: self._update_count())
+        self._update_count()
+
+    def apply_risk_default(self, level):
+        """Called when the setup screen hands off to this one, so the
+        Risk Taking level chosen there also applies here. Only "High"
+        pre-checks anything; every other level leaves these unchecked,
+        since they're the items that specifically need a judgment call."""
+        checked = risk.judgment_default(level)
+        for row in self._rows:
+            row.check.set_active(checked)
         self._update_count()
 
     def _update_count(self):

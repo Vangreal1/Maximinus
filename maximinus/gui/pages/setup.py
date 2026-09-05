@@ -9,6 +9,8 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk  # noqa: E402
 
+from .. import risk
+
 
 class SetupRow(Gtk.Box):
     """One selectable row: a checkbox, a title, and a dim reason line."""
@@ -82,7 +84,26 @@ class SetupPage(Gtk.Box):
         select_none_btn.connect("clicked", lambda *_: self._set_all(False))
         toolbar.pack_start(select_all_btn, False, False, 0)
         toolbar.pack_start(select_none_btn, False, False, 0)
+
+        risk_label = Gtk.Label(label="Risk taking:")
+        risk_label.get_style_context().add_class("item-reason")
+        risk_label.set_margin_start(10)
+        self.risk_combo = Gtk.ComboBoxText()
+        for level in risk.LEVELS:
+            self.risk_combo.append(level, level)
+        self.risk_combo.set_active_id(risk.DEFAULT_LEVEL)
+        self.risk_combo.connect("changed", self._on_risk_changed)
+        toolbar.pack_start(risk_label, False, False, 0)
+        toolbar.pack_start(self.risk_combo, False, False, 0)
         self.pack_start(toolbar, False, False, 0)
+
+        self.risk_description = Gtk.Label(label=risk.DESCRIPTIONS[risk.DEFAULT_LEVEL], xalign=0)
+        self.risk_description.get_style_context().add_class("header-subtitle")
+        self.risk_description.set_line_wrap(True)
+        self.risk_description.set_margin_start(10)
+        self.risk_description.set_margin_end(10)
+        self.risk_description.set_margin_bottom(4)
+        self.pack_start(self.risk_description, False, False, 0)
 
         scroller = Gtk.ScrolledWindow()
         scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
@@ -102,12 +123,18 @@ class SetupPage(Gtk.Box):
                 title=item.reason,
                 reason="Installs: " + ", ".join(packages),
                 badge="INSTALL",
+                checked=risk.setup_row_default("apt", risk.DEFAULT_LEVEL),
             )
             list_box.pack_start(row, False, False, 0)
             self._rows.append((row, "apt", item))
 
         for fixer, item in zip(classification.fixers_to_run, classification.fixer_items):
-            row = SetupRow(title=item.reason, reason=fixer.summary, badge="FIX")
+            row = SetupRow(
+                title=item.reason,
+                reason=fixer.summary,
+                badge="FIX",
+                checked=risk.setup_row_default("fixer", risk.DEFAULT_LEVEL),
+            )
             list_box.pack_start(row, False, False, 0)
             self._rows.append((row, "fixer", fixer))
 
@@ -145,6 +172,15 @@ class SetupPage(Gtk.Box):
     def _set_all(self, value):
         for row, _kind, _payload in self._rows:
             row.check.set_active(value)
+
+    def get_risk_level(self) -> str:
+        return self.risk_combo.get_active_id() or risk.DEFAULT_LEVEL
+
+    def _on_risk_changed(self, _combo):
+        level = self.get_risk_level()
+        self.risk_description.set_text(risk.DESCRIPTIONS[level])
+        for row, kind, _payload in self._rows:
+            row.check.set_active(risk.setup_row_default(kind, level))
 
     def _update_count(self):
         selected = sum(1 for row, _k, _p in self._rows if row.selected)
