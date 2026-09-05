@@ -5,8 +5,12 @@ description = "Condition-driven system setup for Linux Mint"
 requires-python = ">=3.10"
 dependencies = ["PyYAML>=6.0"]
 
+[project.optional-dependencies]
+gui = ["PyGObject>=3.42"]
+
 [project.scripts]
 maximinus = "maximinus.cli:main"
+maximinus-gui = "maximinus.gui.main:main"
 
 [build-system]
 requires = ["setuptools>=61.0"]
@@ -17,3 +21,4 @@ include = ["maximinus*"]
 
 [tool.setuptools.package-data]
 "maximinus.rules" = ["*.yaml"]
+"maximinus.gui" = ["theme.css"]

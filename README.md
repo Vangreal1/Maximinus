@@ -17,6 +17,31 @@ python3 -m maximinus.cli
 
 Add `--json` to get the plan as JSON instead of a human-readable list.
 
+## GUI (`maximinus gui` / `maximinus-gui`)
+
+A GTK3 front end, styled dark, monochrome, and sharp-edged (no rounded
+corners, no accent color — Blender's UI was the reference point). Requires
+PyGObject (`sudo apt install python3-gi`, already present on any Mint
+desktop). Three screens, matching the intended flow:
+
+1. **Setup** — every safe/automatic item (package installs, registered
+   fixers) as a checkbox, all pre-selected, editable before you commit.
+2. **Progress** — a status line stating exactly what's happening right now,
+   above a progress bar, with a running log of completed steps below.
+3. **Judgment calls** — everything that needs a human decision (driver
+   conflicts, audio/firewall changes), nothing pre-selected, each row
+   showing the exact consequence text from `rules.yaml`. Checking boxes
+   and clicking OK applies only what you picked.
+
+**Status: UI and navigation are complete; execution is simulated, not
+real yet.** The setup and judgment screens are populated from the real
+`collect_facts()`/`build_plan()`, so what you see reflects this machine's
+actual state — but clicking "Start" or "OK" walks through the selection
+with a short delay instead of actually running `apt-get`/`fixer.apply()`.
+See [maximinus/gui/](maximinus/gui/) — wiring in real execution is a
+small, well-contained next step now that the three-screen flow itself is
+settled.
+
 ## How it works
 
 1. **Detectors** (`maximinus/detectors/`) probe the system — PCI devices,
