@@ -15,7 +15,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gdk, Gio, Gtk  # noqa: E402
 
 from ..detectors import collect_facts
-from ..detectors.drives import list_luks_devices
+from ..detectors.drives import list_encrypted_devices
 from ..engine import build_plan
 from ..fixes import FIXERS
 from ..planning import classify_plan
@@ -55,7 +55,7 @@ class MaximinusWindow(Gtk.ApplicationWindow):
         self.add(self.stack)
 
         self.credentials_page = CredentialsPage(
-            list_luks_devices(), self._session, on_continue=self._go_to_setup
+            list_encrypted_devices(), self._session, on_continue=self._go_to_setup
         )
         self.setup_page = SetupPage(self._classification, on_start=self._go_to_progress)
         self.progress_page = ProgressPage(on_finished=self._go_to_judgment)

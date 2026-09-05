@@ -107,7 +107,7 @@ def test_enabling_a_feature_routes_through_progress_to_reboot_screen():
     with patch("subprocess.run", side_effect=AssertionError("no real commands in this test")):
         with patch(
             "maximinus.gui.window.collect_facts", return_value={"storage.poolable"}
-        ), patch("maximinus.gui.window.list_luks_devices", return_value=[]):
+        ), patch("maximinus.gui.window.list_encrypted_devices", return_value=[]):
             from maximinus.gui.window import MaximinusApp, MaximinusWindow, _load_css
 
             _load_css()

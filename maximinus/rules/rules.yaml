@@ -58,6 +58,13 @@
       description: "Run `maximinus enroll-drive <device>` to unlock this drive automatically at boot (asks for your existing passphrase once)."
   reason: "Encrypted (LUKS) drive detected that is not yet set up for automatic unlock"
 
+- id: bitlocker-detected
+  when: [fs.bitlocker_present]
+  actions:
+    - type: manual_step
+      description: "A BitLocker-encrypted drive was found, most likely a dual-boot Windows partition. Run `maximinus gui` and enter its password or recovery key on the first screen to unlock it (via dislocker) for this session. Nothing is stored."
+  reason: "BitLocker-encrypted drive detected"
+
 - id: nvidia-conflicting-packages
   when: [gpu.nvidia_conflicting_packages]
   actions:

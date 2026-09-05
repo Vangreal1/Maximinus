@@ -5,6 +5,12 @@ Facts produced:
   fs.exfat_present
   fs.hfsplus_present
   fs.other_linux_present   (a second ext4/btrfs root-like partition)
+  fs.luks_present
+  fs.bitlocker_present     (a Windows BitLocker-encrypted partition, the
+                            common case being a dual-boot Windows drive;
+                            recent util-linux versions of blkid/lsblk
+                            recognize the BitLocker header directly, the
+                            same way they recognize LUKS)
 """
 
 import json
@@ -17,6 +23,13 @@ _INTERESTING_FS = {
     "exfat": "fs.exfat_present",
     "hfsplus": "fs.hfsplus_present",
     "crypto_luks": "fs.luks_present",
+    "bitlocker": "fs.bitlocker_present",
+}
+
+# fstype (lowercased, as lsblk reports it) -> our own short type tag
+_ENCRYPTED_FS_TYPES = {
+    "crypto_luks": "luks",
+    "bitlocker": "bitlocker",
 }
 
 
@@ -54,9 +67,20 @@ def detect_drive_facts():
 
 def list_luks_devices():
     """Return /dev paths (e.g. /dev/sda3) of LUKS-encrypted partitions."""
+    return [device for device, kind in list_encrypted_devices() if kind == "luks"]
+
+
+def list_encrypted_devices():
+    """Return [(device_path, type)] for every recognized encrypted
+    partition, where type is "luks" or "bitlocker". Adding support for
+    another encrypted format is a matter of adding one more fstype ->
+    type mapping to _ENCRYPTED_FS_TYPES and an unlocker that understands
+    it (see security/luks_enroll.py and security/bitlocker.py)."""
     data = _lsblk_json()
     devices = []
     for dev in _walk(data.get("blockdevices", [])):
-        if (dev.get("fstype") or "").lower() == "crypto_luks":
-            devices.append(f"/dev/{dev['name']}")
+        fstype = (dev.get("fstype") or "").lower()
+        kind = _ENCRYPTED_FS_TYPES.get(fstype)
+        if kind:
+            devices.append((f"/dev/{dev['name']}", kind))
     return devices

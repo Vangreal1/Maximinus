@@ -54,7 +54,7 @@ def _no_real_commands_allowed(*args, **kwargs):
 def test_full_flow_never_shells_out(tmp_path):
     with patch("subprocess.run", side_effect=_no_real_commands_allowed):
         with patch("maximinus.gui.window.collect_facts", return_value=_fake_plan_facts()), patch(
-            "maximinus.gui.window.list_luks_devices", return_value=[]
+            "maximinus.gui.window.list_encrypted_devices", return_value=[]
         ):
             from maximinus.gui.window import MaximinusApp, MaximinusWindow, _load_css
 
@@ -100,7 +100,7 @@ def test_full_flow_never_shells_out(tmp_path):
 def test_declining_all_setup_items_skips_straight_to_judgment():
     with patch("subprocess.run", side_effect=_no_real_commands_allowed):
         with patch("maximinus.gui.window.collect_facts", return_value=_fake_plan_facts()), patch(
-            "maximinus.gui.window.list_luks_devices", return_value=[]
+            "maximinus.gui.window.list_encrypted_devices", return_value=[]
         ):
             from maximinus.gui.window import MaximinusApp, MaximinusWindow, _load_css
 
@@ -124,7 +124,7 @@ def test_declining_all_setup_items_skips_straight_to_judgment():
 def test_judgment_ok_with_nothing_selected_skips_progress_and_goes_to_reboot():
     with patch("subprocess.run", side_effect=_no_real_commands_allowed):
         with patch("maximinus.gui.window.collect_facts", return_value=_fake_plan_facts()), patch(
-            "maximinus.gui.window.list_luks_devices", return_value=[]
+            "maximinus.gui.window.list_encrypted_devices", return_value=[]
         ):
             from maximinus.gui.window import MaximinusApp, MaximinusWindow, _load_css
 

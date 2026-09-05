@@ -116,7 +116,7 @@ def test_window_carries_risk_level_from_setup_to_judgment():
         with patch(
             "maximinus.gui.window.collect_facts",
             return_value={"fs.exfat_present", "fs.luks_present"},
-        ), patch("maximinus.gui.window.list_luks_devices", return_value=[]):
+        ), patch("maximinus.gui.window.list_encrypted_devices", return_value=[]):
             from maximinus.gui.window import MaximinusApp, MaximinusWindow, _load_css
 
             _load_css()

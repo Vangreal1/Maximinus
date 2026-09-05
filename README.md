@@ -30,16 +30,21 @@ desktop). The full pipeline:
 0. **Credentials** (first screen) — enter your sudo password once; it's
    used immediately to authenticate (a real `sudo -k -S -v` call) and then
    discarded, relying on sudo's own ticket cache the same way the CLI
-   does. Any encrypted drives found each get their own passphrase field,
-   used immediately to actually unlock that drive (a real `cryptsetup
-   open`) — which is also how it's checked, since cryptsetup itself
-   rejects a wrong passphrase. The passphrase is never stored anywhere,
-   not even in memory past that one call; only *which* devices are now
-   unlocked is kept (see [maximinus/gui/session.py](maximinus/maximinus/gui/session.py)'s
+   does. Any encrypted drives found each get their own field, labeled
+   with the drive and its type, used immediately to actually unlock that
+   drive for real:
+   - **LUKS**: a real `cryptsetup open` ([security/luks_enroll.py](maximinus/maximinus/security/luks_enroll.py)'s `unlock_device`).
+   - **BitLocker**: a real `dislocker-fuse` call ([security/bitlocker.py](maximinus/maximinus/security/bitlocker.py)'s `unlock_device`), the common case being a dual-boot Windows drive. Accepts either the account password or the 48-digit recovery key, auto-detected by format.
+
+   Either way, success or failure *is* the correctness check — the unlock
+   tool itself rejects a wrong secret, no separate verification needed.
+   A rejection shows up directly under the specific field that failed,
+   not as one shared banner, so it's unambiguous which one to fix. The
+   secret is never stored anywhere, not even in memory past that one
+   call; only *which* devices are now unlocked is kept (see
+   [maximinus/gui/session.py](maximinus/maximinus/gui/session.py)'s
    `Session.unlocked_devices`). See
-   [maximinus/gui/pages/credentials.py](maximinus/maximinus/gui/pages/credentials.py)
-   and [maximinus/security/luks_enroll.py](maximinus/maximinus/security/luks_enroll.py)'s
-   `unlock_device`.
+   [maximinus/gui/pages/credentials.py](maximinus/maximinus/gui/pages/credentials.py).
 1. **Setup** — every safe/automatic item (package installs, registered
    fixers) as a checkbox, all pre-selected (per the Risk Taking level, see
    below), editable before you commit.
