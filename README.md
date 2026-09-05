@@ -138,13 +138,47 @@ Smaller, standalone checks in [maximinus/detectors/extras.py](maximinus/maximinu
 all surfaced as ordinary `apt_install` recommendations (so `cleanup` and
 the GUI's setup screen install them like any other package):
 
-- **Laptop power management** — a battery is present but `tlp` isn't
-  installed.
+- **Laptop power management** — a battery is present but neither `tlp` nor
+  Mint's own default, `power-profiles-daemon`, is active. If
+  `power-profiles-daemon` is already handling it, nothing is recommended;
+  if both `tlp` and `power-profiles-daemon` end up active at once (a real,
+  known conflict since they fight over the same hardware controls), that's
+  flagged as a judgment call instead of silently installing on top.
 - **Firmware updates** — no `fwupd`/`fwupdmgr`, so there's no way to check
   for or apply firmware updates from Linux.
 - **Media codecs** — `libavcodec-extra` isn't installed, so some
   audio/video files may not play.
 - **Printing** — no `cups`, so printers won't work at all yet.
+
+## Adapting to changes you already made
+
+A few checks and fixers specifically look for signs that something was
+already set up differently before assuming a "clean slate," since a real
+machine rarely is one:
+
+- **Power management**: won't recommend `tlp` if `power-profiles-daemon`
+  is already active (see above), and flags it as a conflict rather than a
+  recommendation if both end up running.
+- **Firewall**: won't suggest enabling `ufw` if `firewalld` is already the
+  active firewall manager.
+- **Audio conflict**: won't flag PulseAudio vs. PipeWire if `pulseaudio`'s
+  service is already masked, a common sign someone already migrated away
+  from it deliberately and just never purged the package.
+- **Dual-boot / GRUB**: skips the os-prober check entirely on a system
+  that isn't using GRUB at all (e.g. systemd-boot), instead of proposing a
+  fix that would only fail.
+- **LUKS enrollment**: if a previous run's keyfile exists but never made
+  it into `/etc/crypttab` (interrupted run, or a hand-edited crypttab
+  later), `enroll-drive` finishes the job using the existing keyfile
+  instead of treating the half-finished state as done, or asking for the
+  passphrase again unnecessarily.
+- **Storage pooling**: refuses to mount a pool over a path that already
+  has something else mounted there directly (checked against the live
+  mount table, not just `/etc/fstab`, so a manual mount the user set up by
+  hand is still caught).
+- **Swap file creation**: falls back to `dd` if `fallocate` is refused (a
+  known btrfs limitation for swap files), and marks the file no-COW
+  first, which btrfs requires for a working swap file.
 
 ## Driver health checks
 

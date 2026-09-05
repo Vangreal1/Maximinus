@@ -35,6 +35,7 @@ def test_full_success_path_writes_fstab_line():
     def fake_write(path, content, mode="0644"):
         written["content"] = content
 
+    # install(create), chattr, fallocate, mkswap, swapon
     with patch("os.path.exists", return_value=False), patch.object(
         swapfile, "read_root_file", return_value=""
     ), patch.object(swapfile, "write_root_file", side_effect=fake_write), patch.object(
@@ -42,27 +43,79 @@ def test_full_success_path_writes_fstab_line():
     ) as run:
         swapfile.apply()
 
-    assert run.call_count == 4  # fallocate, chmod, mkswap, swapon
+    assert run.call_count == 5
     assert "/swapfile none swap sw,nofail 0 0" in written["content"]
 
 
-def test_fallocate_failure_raises_fixerror_and_stops_early():
+def test_falls_back_to_dd_when_fallocate_is_refused():
+    # e.g. a btrfs copy-on-write file rejecting fallocate for swap.
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        if cmd[0] == "fallocate":
+            return _fail("Operation not supported")
+        return _ok()
+
     with patch("os.path.exists", return_value=False), patch.object(
         swapfile, "read_root_file", return_value=""
-    ), patch.object(swapfile, "run_privileged", return_value=_fail("no space")) as run:
+    ), patch.object(swapfile, "write_root_file"), patch.object(
+        swapfile, "run_privileged", side_effect=fake_run
+    ):
+        swapfile.apply()
+
+    commands = [cmd[0] for cmd in calls]
+    assert "fallocate" in commands
+    assert "dd" in commands
+    assert commands.index("dd") > commands.index("fallocate")
+
+
+def test_raises_if_both_fallocate_and_dd_fail():
+    with patch("os.path.exists", return_value=False), patch.object(
+        swapfile, "read_root_file", return_value=""
+    ), patch.object(swapfile, "run_privileged") as run:
+
+        def fake_run(cmd, **kwargs):
+            if cmd[0] == "install":
+                return _ok()
+            if cmd[0] == "chattr":
+                return _ok()
+            return _fail(f"{cmd[0]} failed")
+
+        run.side_effect = fake_run
         try:
             swapfile.apply()
             assert False, "expected FixError"
         except FixError as exc:
-            assert "no space" in str(exc)
-    run.assert_called_once()  # never got to chmod/mkswap/swapon
+            assert "fallocate failed" in str(exc)
+            assert "dd fallback also failed" in str(exc)
+
+
+def test_chattr_failure_does_not_abort_the_whole_fixer():
+    # chattr +C failing (e.g. not supported on this filesystem) must be
+    # a harmless no-op, not a fatal error.
+    def fake_run(cmd, **kwargs):
+        if cmd[0] == "chattr":
+            return _fail("chattr: not supported")
+        return _ok()
+
+    with patch("os.path.exists", return_value=False), patch.object(
+        swapfile, "read_root_file", return_value=""
+    ), patch.object(swapfile, "write_root_file"), patch.object(
+        swapfile, "run_privileged", side_effect=fake_run
+    ):
+        swapfile.apply()  # should not raise
 
 
 def test_mkswap_failure_raises_fixerror():
-    results = [_ok(), _ok(), _fail("mkswap: bad")]
+    def fake_run(cmd, **kwargs):
+        if cmd[0] == "mkswap":
+            return _fail("mkswap: bad")
+        return _ok()
+
     with patch("os.path.exists", return_value=False), patch.object(
         swapfile, "read_root_file", return_value=""
-    ), patch.object(swapfile, "run_privileged", side_effect=results):
+    ), patch.object(swapfile, "run_privileged", side_effect=fake_run):
         try:
             swapfile.apply()
             assert False, "expected FixError"

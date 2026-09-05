@@ -48,7 +48,7 @@ def get_uuid(device: str) -> str:
     return uuid
 
 
-def already_enrolled(uuid: str) -> bool:
+def keyfile_exists(uuid: str) -> bool:
     keyfile = os.path.join(KEY_DIR, f"{uuid}.key")
     check = subprocess.run(
         ["sudo", "test", "-f", keyfile], check=False
@@ -56,14 +56,44 @@ def already_enrolled(uuid: str) -> bool:
     return check.returncode == 0
 
 
+def crypttab_registered(uuid: str) -> bool:
+    return uuid in read_root_file(CRYPTTAB)
+
+
+def already_enrolled(uuid: str) -> bool:
+    """True only if a previous run finished completely: the keyfile exists
+    AND /etc/crypttab actually references it. Checking just the keyfile
+    isn't enough — a prior run that was interrupted between installing the
+    keyfile and registering crypttab (or a user who later hand-edited
+    crypttab and removed the line) would leave the keyfile in place but
+    the drive still not actually unlocking automatically. Treating that
+    half-finished state as "done" would silently leave the job unfinished.
+    """
+    return keyfile_exists(uuid) and crypttab_registered(uuid)
+
+
 def enroll(device: str, passphrase: str | None = None) -> str:
     """Enroll `device` for passphrase-free unlock. Returns the drive's UUID.
 
     If `passphrase` is None, prompts interactively (not echoed to the
-    terminal, not stored). Idempotent: does nothing if already enrolled.
+    terminal, not stored). Idempotent: does nothing if already fully
+    enrolled, and picks up cleanly from a half-finished previous attempt
+    (reuses an existing keyfile instead of asking for the passphrase again
+    and generating a redundant one, if only the crypttab entry is missing).
     """
     uuid = get_uuid(device)
     if already_enrolled(uuid):
+        return uuid
+
+    dest_keyfile = os.path.join(KEY_DIR, f"{uuid}.key")
+
+    if keyfile_exists(uuid):
+        # A previous run got the keyfile installed but not registered.
+        # Reuse it rather than asking for the passphrase again.
+        try:
+            _register_crypttab(uuid, dest_keyfile)
+        except RootFileError as exc:
+            raise EnrollmentError(str(exc)) from exc
         return uuid
 
     if passphrase is None:
@@ -93,7 +123,6 @@ def enroll(device: str, passphrase: str | None = None) -> str:
         if mkdir_result.returncode != 0:
             raise EnrollmentError(f"failed to create {KEY_DIR}: {mkdir_result.stderr.strip()}")
 
-        dest_keyfile = os.path.join(KEY_DIR, f"{uuid}.key")
         install_result = run_privileged(
             ["install", "-m", "0400", "-o", "root", "-g", "root", tmp_keyfile, dest_keyfile],
             capture_output=True,

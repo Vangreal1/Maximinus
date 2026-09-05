@@ -3,10 +3,10 @@ from unittest.mock import mock_open, patch
 from maximinus.detectors import extras
 
 
-def test_tlp_missing_flagged_on_laptop_without_it():
+def test_tlp_missing_flagged_when_neither_tlp_nor_ppd_present():
     with patch.object(extras, "_is_laptop", return_value=True), patch.object(
         extras, "_dpkg_installed", return_value=False
-    ):
+    ), patch.object(extras, "_service_active", return_value=False):
         assert extras.detect_power_management_facts() == {"power.tlp_missing"}
 
 
@@ -15,11 +15,27 @@ def test_tlp_not_flagged_on_desktop():
         assert extras.detect_power_management_facts() == set()
 
 
-def test_tlp_not_flagged_when_already_installed():
+def test_tlp_not_flagged_when_already_installed_and_ppd_inactive():
     with patch.object(extras, "_is_laptop", return_value=True), patch.object(
         extras, "_dpkg_installed", return_value=True
-    ):
+    ), patch.object(extras, "_service_active", return_value=False):
         assert extras.detect_power_management_facts() == set()
+
+
+def test_tlp_not_flagged_when_ppd_already_handling_it():
+    # power-profiles-daemon (Mint's own default) is active and tlp isn't
+    # installed: already handled, nothing to recommend.
+    with patch.object(extras, "_is_laptop", return_value=True), patch.object(
+        extras, "_dpkg_installed", return_value=False
+    ), patch.object(extras, "_service_active", return_value=True):
+        assert extras.detect_power_management_facts() == set()
+
+
+def test_tlp_ppd_conflict_flagged_when_both_active():
+    with patch.object(extras, "_is_laptop", return_value=True), patch.object(
+        extras, "_dpkg_installed", return_value=True
+    ), patch.object(extras, "_service_active", return_value=True):
+        assert extras.detect_power_management_facts() == {"power.tlp_ppd_conflict"}
 
 
 def test_fwupd_missing_flagged():

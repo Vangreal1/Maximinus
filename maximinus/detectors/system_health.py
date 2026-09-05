@@ -14,7 +14,12 @@ Facts produced:
                                             own EFI/<name> directory) exists
                                             but GRUB won't list it
   audio.pulseaudio_pipewire_conflict     — both audio servers installed
-  firewall.ufw_inactive                  — ufw present but not enabled
+                                            AND pulseaudio hasn't already
+                                            been masked (a common sign the
+                                            user already dealt with this)
+  firewall.ufw_inactive                  — ufw present but not enabled,
+                                            and nothing else (firewalld) is
+                                            already acting as the firewall
 """
 
 import os
@@ -39,6 +44,30 @@ def _dpkg_installed(pkg):
         check=False,
     )
     return "install ok installed" in result.stdout
+
+
+def _service_active(unit):
+    if shutil.which("systemctl") is None:
+        return False
+    result = subprocess.run(
+        ["systemctl", "is-active", unit], capture_output=True, text=True, check=False
+    )
+    return result.stdout.strip() == "active"
+
+
+def _user_service_masked(unit):
+    """Best-effort: True only if we could actually ask and got "masked".
+    Running outside a normal desktop session (no D-Bus session, via sudo,
+    cron, etc.) just means we can't tell, so this quietly returns False
+    rather than erroring, and the caller falls back to its default
+    behavior in that case."""
+    result = subprocess.run(
+        ["systemctl", "--user", "is-enabled", unit],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return "masked" in result.stdout.lower()
 
 
 def _read_file(path):
@@ -86,6 +115,8 @@ def _other_os_efi_entries():
 
 
 def _detect_grub_os_prober_issue():
+    if not os.path.isdir("/boot/grub") and not os.path.isdir("/boot/grub2"):
+        return set()  # not using GRUB at all (e.g. systemd-boot) — nothing to fix here
     drive_facts = detect_drive_facts()
     other_os_present = "fs.ntfs_present" in drive_facts or bool(_other_os_efi_entries())
     if not other_os_present:
@@ -103,13 +134,23 @@ def _detect_grub_os_prober_issue():
 
 
 def _detect_audio_conflict():
-    if _dpkg_installed("pulseaudio") and _dpkg_installed("pipewire-pulse"):
-        return {"audio.pulseaudio_pipewire_conflict"}
-    return set()
+    if not (_dpkg_installed("pulseaudio") and _dpkg_installed("pipewire-pulse")):
+        return set()
+    if _user_service_masked("pulseaudio.service") or _user_service_masked("pulseaudio.socket"):
+        # Installed-but-masked is a common, deliberate leftover from
+        # someone who already migrated to PipeWire themselves — the
+        # package is still there, but nothing is actually fighting.
+        return set()
+    return {"audio.pulseaudio_pipewire_conflict"}
 
 
 def _detect_ufw_inactive():
     if shutil.which("ufw") is None:
+        return set()
+    if _service_active("firewalld"):
+        # A different firewall manager is already doing the job; turning
+        # on ufw alongside it would just be two tools fighting over the
+        # same netfilter rules.
         return set()
     out = _run(["ufw", "status"]).lower()
     return {"firewall.ufw_inactive"} if "inactive" in out else set()

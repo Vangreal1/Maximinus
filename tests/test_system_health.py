@@ -43,38 +43,53 @@ def test_time_sync_enabled_produces_no_fact():
 
 
 def test_grub_os_prober_flagged_when_ntfs_present_and_prober_missing():
-    with patch.object(sh, "detect_drive_facts", return_value={"fs.ntfs_present"}), \
+    with patch("os.path.isdir", return_value=True), \
+         patch.object(sh, "detect_drive_facts", return_value={"fs.ntfs_present"}), \
          patch("shutil.which", return_value=None), \
          patch.object(sh, "_read_file", return_value=""):
         assert sh._detect_grub_os_prober_issue() == {"grub.os_prober_disabled_with_other_os"}
 
 
 def test_grub_os_prober_flagged_when_explicitly_disabled_in_config():
-    with patch.object(sh, "detect_drive_facts", return_value={"fs.ntfs_present"}), \
+    with patch("os.path.isdir", return_value=True), \
+         patch.object(sh, "detect_drive_facts", return_value={"fs.ntfs_present"}), \
          patch("shutil.which", return_value="/usr/bin/os-prober"), \
          patch.object(sh, "_read_file", return_value="GRUB_DISABLE_OS_PROBER=true\n"):
         assert sh._detect_grub_os_prober_issue() == {"grub.os_prober_disabled_with_other_os"}
 
 
 def test_grub_os_prober_ok_when_installed_and_enabled():
-    with patch.object(sh, "detect_drive_facts", return_value={"fs.ntfs_present"}), \
+    with patch("os.path.isdir", return_value=True), \
+         patch.object(sh, "detect_drive_facts", return_value={"fs.ntfs_present"}), \
          patch("shutil.which", return_value="/usr/bin/os-prober"), \
          patch.object(sh, "_read_file", return_value="GRUB_DISABLE_OS_PROBER=false\n"):
         assert sh._detect_grub_os_prober_issue() == set()
 
 
 def test_grub_os_prober_not_flagged_without_any_other_os_signal():
-    with patch.object(sh, "detect_drive_facts", return_value=set()), patch.object(
+    with patch("os.path.isdir", return_value=True), \
+         patch.object(sh, "detect_drive_facts", return_value=set()), patch.object(
         sh, "_other_os_efi_entries", return_value=set()
     ):
         assert sh._detect_grub_os_prober_issue() == set()
 
 
 def test_grub_os_prober_flagged_by_second_linux_install_efi_entry():
-    with patch.object(sh, "detect_drive_facts", return_value=set()), \
+    with patch("os.path.isdir", return_value=True), \
+         patch.object(sh, "detect_drive_facts", return_value=set()), \
          patch.object(sh, "_other_os_efi_entries", return_value={"fedora"}), \
          patch("shutil.which", return_value=None):
         assert sh._detect_grub_os_prober_issue() == {"grub.os_prober_disabled_with_other_os"}
+
+
+def test_grub_os_prober_not_flagged_when_not_using_grub_at_all():
+    # e.g. systemd-boot: no /boot/grub or /boot/grub2 directory at all.
+    # Must not even get to the dual-boot signal check.
+    with patch("os.path.isdir", return_value=False), patch.object(
+        sh, "detect_drive_facts", return_value={"fs.ntfs_present"}
+    ) as drive_facts:
+        assert sh._detect_grub_os_prober_issue() == set()
+    drive_facts.assert_not_called()
 
 
 def test_own_efi_dirs_are_not_treated_as_another_os():
@@ -89,8 +104,10 @@ def test_foreign_efi_dir_is_reported():
         assert sh._other_os_efi_entries() == {"Microsoft"}
 
 
-def test_audio_conflict_detected_when_both_installed():
-    with patch.object(sh, "_dpkg_installed", side_effect=lambda pkg: pkg in {"pulseaudio", "pipewire-pulse"}):
+def test_audio_conflict_detected_when_both_installed_and_not_masked():
+    with patch.object(
+        sh, "_dpkg_installed", side_effect=lambda pkg: pkg in {"pulseaudio", "pipewire-pulse"}
+    ), patch.object(sh, "_user_service_masked", return_value=False):
         assert sh._detect_audio_conflict() == {"audio.pulseaudio_pipewire_conflict"}
 
 
@@ -99,15 +116,32 @@ def test_audio_conflict_absent_when_only_one_installed():
         assert sh._detect_audio_conflict() == set()
 
 
+def test_audio_conflict_absent_when_pulseaudio_already_masked():
+    # The user (or a previous migration) already disabled pulseaudio
+    # deliberately; the package being present is just a leftover.
+    with patch.object(
+        sh, "_dpkg_installed", side_effect=lambda pkg: pkg in {"pulseaudio", "pipewire-pulse"}
+    ), patch.object(sh, "_user_service_masked", return_value=True):
+        assert sh._detect_audio_conflict() == set()
+
+
 def test_ufw_inactive_detected():
     with patch("shutil.which", return_value="/usr/sbin/ufw"), patch.object(
-        sh, "_run", return_value="Status: inactive\n"
-    ):
+        sh, "_service_active", return_value=False
+    ), patch.object(sh, "_run", return_value="Status: inactive\n"):
         assert sh._detect_ufw_inactive() == {"firewall.ufw_inactive"}
 
 
 def test_ufw_active_produces_no_fact():
     with patch("shutil.which", return_value="/usr/sbin/ufw"), patch.object(
-        sh, "_run", return_value="Status: active\n"
-    ):
+        sh, "_service_active", return_value=False
+    ), patch.object(sh, "_run", return_value="Status: active\n"):
         assert sh._detect_ufw_inactive() == set()
+
+
+def test_ufw_not_flagged_when_firewalld_already_active():
+    with patch("shutil.which", return_value="/usr/sbin/ufw"), patch.object(
+        sh, "_service_active", return_value=True
+    ), patch.object(sh, "_run") as run:
+        assert sh._detect_ufw_inactive() == set()
+    run.assert_not_called()  # shouldn't even bother checking ufw's own status

@@ -41,7 +41,7 @@ def test_run_privileged_defaults_to_check_true():
 def test_enroll_mkdir_failure_raises_enrollment_error_not_calledprocesserror():
     with patch.object(le, "get_uuid", return_value="uuid-1"), patch.object(
         le, "already_enrolled", return_value=False
-    ), patch(
+    ), patch.object(le, "keyfile_exists", return_value=False), patch(
         "subprocess.run",
         side_effect=[
             _ok(),  # cryptsetup luksAddKey

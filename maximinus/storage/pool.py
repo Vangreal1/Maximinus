@@ -63,6 +63,22 @@ def _underlying_mountpoint(path: str) -> str:
     return result.stdout.strip() or "/"
 
 
+def _is_actively_mounted(path: str) -> bool:
+    """True if `path` itself (not just an ancestor of it) is currently a
+    live mountpoint. Checked before pooling so we never mount mergerfs on
+    top of something the user already mounted there by hand (an external
+    drive mounted directly onto that folder, a manual bind mount, ...) —
+    an /etc/fstab entry alone wouldn't catch that, since a manual mount
+    doesn't necessarily have one."""
+    result = subprocess.run(
+        ["findmnt", "-n", "-o", "TARGET", "--target", path],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.stdout.strip() == os.path.normpath(path)
+
+
 def _fstab_has_mountpoint(fstab: str, mountpoint: str) -> bool:
     if mountpoint == "/":
         return True  # root is always available at boot by definition
@@ -120,6 +136,13 @@ def build_pool(mount_path: str, branches: list[str], policy: str = "mfs") -> Non
     for branch in branches:
         if not os.path.isdir(branch):
             raise PoolError(f"branch does not exist: {branch}")
+    if _is_actively_mounted(mount_path):
+        raise PoolError(
+            f"{mount_path} already has something else mounted on it directly "
+            "(not a maximinus pool, and not in /etc/fstab, so it was likely set "
+            "up by hand). Refusing to mount over it — unmount it yourself first "
+            "if you still want to pool this folder."
+        )
 
     ensure_mergerfs_installed()
 

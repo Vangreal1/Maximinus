@@ -4,11 +4,21 @@ codecs, and low memory with no swap configured.
 
 Facts produced:
   power.tlp_missing        — this is a laptop (has a battery) with no
-                              power-management tool installed
+                              power-management tool installed or active
+  power.tlp_ppd_conflict   — tlp is installed AND power-profiles-daemon
+                              (Mint/GNOME's own default) is also active;
+                              these two are known to fight over the same
+                              hardware knobs
   firmware.fwupd_missing   — no tool to check for/apply firmware updates
   media.codecs_missing     — common extra codecs aren't installed
   printing.cups_missing    — no printing system installed at all
   mem.low_ram_no_swap      — low total RAM and no swap of any kind
+
+Several of these checks specifically look for a *different* tool already
+covering the same job before recommending one, since Mint (and other
+distros) increasingly ship their own defaults out of the box. Recommending
+a second tool on top of one already active is exactly the "two things
+fighting over the same job" mistake this project exists to catch.
 """
 
 import shutil
@@ -27,6 +37,15 @@ def _dpkg_installed(pkg):
         check=False,
     )
     return "install ok installed" in result.stdout
+
+
+def _service_active(unit):
+    if shutil.which("systemctl") is None:
+        return False
+    result = subprocess.run(
+        ["systemctl", "is-active", unit], capture_output=True, text=True, check=False
+    )
+    return result.stdout.strip() == "active"
 
 
 def _is_laptop():
@@ -54,9 +73,22 @@ def _has_any_swap():
 
 
 def detect_power_management_facts():
-    if _is_laptop() and not _dpkg_installed("tlp"):
+    if not _is_laptop():
+        return set()
+
+    tlp_installed = _dpkg_installed("tlp")
+    ppd_active = _service_active("power-profiles-daemon")
+
+    if tlp_installed and ppd_active:
+        # A known real conflict: both manage the same CPU/power hardware
+        # and fight over it. Mint ships power-profiles-daemon by default,
+        # so this happens whenever tlp gets installed on top of it.
+        return {"power.tlp_ppd_conflict"}
+
+    if not tlp_installed and not ppd_active:
         return {"power.tlp_missing"}
-    return set()
+
+    return set()  # exactly one of the two is handling it already, fine as-is
 
 
 def detect_firmware_update_facts():

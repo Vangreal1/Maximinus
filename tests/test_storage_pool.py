@@ -95,3 +95,31 @@ def test_build_pool_is_noop_if_already_pooled(tmp_path):
     ) as ensure_installed:
         pool.build_pool(str(tmp_path), [str(tmp_path), str(tmp_path)])
     ensure_installed.assert_not_called()
+
+
+def test_build_pool_refuses_to_mount_over_something_already_mounted_there(tmp_path):
+    branch_a = tmp_path / "a"
+    branch_b = tmp_path / "b"
+    branch_a.mkdir()
+    branch_b.mkdir()
+
+    with patch.object(pool, "is_pooled", return_value=False), patch.object(
+        pool, "_is_actively_mounted", return_value=True
+    ), patch.object(pool, "ensure_mergerfs_installed") as ensure_installed:
+        try:
+            pool.build_pool(str(branch_a), [str(branch_a), str(branch_b)])
+            assert False, "expected PoolError"
+        except pool.PoolError as exc:
+            assert "already has something else mounted" in str(exc)
+    ensure_installed.assert_not_called()
+
+
+def test_is_actively_mounted_matches_exact_path_only(tmp_path):
+    target = str(tmp_path)
+    result_here = subprocess.CompletedProcess(args=[], returncode=0, stdout=target + "\n", stderr="")
+    with patch("subprocess.run", return_value=result_here):
+        assert pool._is_actively_mounted(target) is True
+
+    result_elsewhere = subprocess.CompletedProcess(args=[], returncode=0, stdout="/\n", stderr="")
+    with patch("subprocess.run", return_value=result_elsewhere):
+        assert pool._is_actively_mounted(target) is False

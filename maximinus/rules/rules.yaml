@@ -238,6 +238,20 @@
       packages: [tlp]
   reason: "This looks like a laptop, and no power-management tool is installed"
 
+- id: power-tlp-ppd-conflict
+  when: [power.tlp_ppd_conflict]
+  actions:
+    - type: manual_step
+      description: >-
+        Both tlp and power-profiles-daemon (Mint's own default power
+        manager) are active. They both try to control the same CPU/power
+        settings and can fight over them, similar to the NVIDIA driver
+        conflict this tool also checks for. Pick one: either `sudo apt
+        purge tlp` to keep Mint's default, or `sudo systemctl disable
+        --now power-profiles-daemon` if you'd rather use tlp's finer
+        controls.
+  reason: "tlp and power-profiles-daemon are both active and can conflict"
+
 - id: firmware-updates
   when: [firmware.fwupd_missing]
   actions:
