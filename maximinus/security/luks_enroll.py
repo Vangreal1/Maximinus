@@ -24,6 +24,7 @@ import subprocess
 import tempfile
 import uuid as uuid_mod
 
+from .root_files import read_root_file, write_root_file
 from .sudo_session import run_privileged
 
 KEY_DIR = "/etc/maximinus/keys"
@@ -54,23 +55,6 @@ def already_enrolled(uuid: str) -> bool:
         ["sudo", "test", "-f", keyfile], check=False
     )
     return check.returncode == 0
-
-
-def _read_root_file(path: str) -> str:
-    result = subprocess.run(
-        ["sudo", "cat", path], capture_output=True, text=True, check=False
-    )
-    return result.stdout if result.returncode == 0 else ""
-
-
-def _write_root_file(path: str, content: str, mode: str = "0644") -> None:
-    with tempfile.NamedTemporaryFile("w", delete=False) as tmp:
-        tmp.write(content)
-        tmp_path = tmp.name
-    try:
-        run_privileged(["install", "-m", mode, "-o", "root", "-g", "root", tmp_path, path])
-    finally:
-        os.unlink(tmp_path)
 
 
 def enroll(device: str, passphrase: str | None = None) -> str:
@@ -119,7 +103,7 @@ def enroll(device: str, passphrase: str | None = None) -> str:
 
 
 def _register_crypttab(uuid: str, keyfile: str) -> None:
-    existing = _read_root_file(CRYPTTAB)
+    existing = read_root_file(CRYPTTAB)
     if uuid in existing:
         return
     mapper_name = f"maximinus-{uuid[:8]}"
@@ -128,4 +112,4 @@ def _register_crypttab(uuid: str, keyfile: str) -> None:
     if new_content and not new_content.endswith("\n"):
         new_content += "\n"
     new_content += line
-    _write_root_file(CRYPTTAB, new_content, mode="0600")
+    write_root_file(CRYPTTAB, new_content, mode="0600")

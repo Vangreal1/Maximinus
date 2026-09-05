@@ -58,6 +58,13 @@
       description: "Run `maximinus enroll-drive <device>` to unlock this drive automatically at boot (asks for your existing passphrase once)."
   reason: "Encrypted (LUKS) drive detected that is not yet set up for automatic unlock"
 
+- id: storage-pool-candidate
+  when: [storage.poolable]
+  actions:
+    - type: manual_step
+      description: "Run `maximinus pool-drives` to merge matching folders (e.g. Downloads) across your drives into one combined view with shared free space. No files are moved."
+  reason: "Multiple drives/partitions with matching folder structure detected"
+
 - id: hfsplus-support
   when: [fs.hfsplus_present]
   actions:

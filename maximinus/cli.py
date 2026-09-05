@@ -6,6 +6,7 @@ real (but narrow, reversible) change — see maximinus/security/luks_enroll.py.
 
 import argparse
 import json
+import os
 import sys
 
 from .detectors import collect_facts
@@ -13,6 +14,8 @@ from .detectors.drives import list_luks_devices
 from .engine import build_plan
 from .security.luks_enroll import EnrollmentError, enroll
 from .security.sudo_session import ElevationError, ensure_sudo
+from .storage.discovery import discover_category_branches
+from .storage.pool import PoolError, build_pool, is_pooled
 
 
 def _plan_to_dicts(plan):
@@ -54,33 +57,98 @@ def _cmd_scan(args):
 
 
 def _cmd_enroll_drive(args):
-    device = args.device
-    if device is None:
-        candidates = list_luks_devices()
-        if not candidates:
-            print("No LUKS-encrypted drives detected.")
-            return 1
-        if len(candidates) > 1:
-            print("Multiple encrypted drives found, specify one:")
-            for dev in candidates:
-                print(f"  {dev}")
-            return 1
-        device = candidates[0]
+    devices = [args.device] if args.device else list_luks_devices()
+    if not devices:
+        print("No LUKS-encrypted drives detected.")
+        return 1
 
-    print(f"Enrolling {device} for passphrase-free unlock at boot.")
-    print("This will ask for your sudo password and the drive's existing")
-    print("LUKS passphrase, each exactly once. Neither is stored anywhere;")
-    print("only a freshly generated keyfile is installed at")
-    print("/etc/maximinus/keys/ (root-only) and referenced from /etc/crypttab.")
+    print(f"Enrolling {len(devices)} drive(s) for passphrase-free unlock at boot:")
+    for dev in devices:
+        print(f"  {dev}")
+    print("Each will ask for its own existing LUKS passphrase, exactly once.")
+    print("Your sudo password is asked once for the whole run. Neither is")
+    print("stored anywhere; only a freshly generated keyfile per drive is")
+    print("installed at /etc/maximinus/keys/ (root-only) and referenced")
+    print("from /etc/crypttab. Already-enrolled drives are skipped.")
 
     try:
         ensure_sudo()
-        uuid = enroll(device)
-    except (ElevationError, EnrollmentError) as exc:
+    except ElevationError as exc:
         print(f"Failed: {exc}", file=sys.stderr)
         return 1
 
-    print(f"Done. {device} (UUID={uuid}) will now unlock automatically at boot.")
+    failures = []
+    for dev in devices:
+        try:
+            uuid = enroll(dev)
+        except EnrollmentError as exc:
+            print(f"  {dev}: FAILED — {exc}", file=sys.stderr)
+            failures.append(dev)
+            continue
+        print(f"  {dev} (UUID={uuid}): will now unlock automatically at boot.")
+
+    if failures:
+        print(f"\n{len(failures)} of {len(devices)} drive(s) failed: {', '.join(failures)}")
+        return 1
+    return 0
+
+
+def _pick_mount_path(category, branches):
+    home_path = os.path.join(os.path.expanduser("~"), category)
+    return home_path if home_path in branches else branches[0]
+
+
+def _cmd_pool_drives(args):
+    branches_by_category = {
+        category: paths
+        for category, paths in discover_category_branches().items()
+        if len(paths) >= 2
+    }
+    if not branches_by_category:
+        print("No matching folders found across multiple drives to pool.")
+        return 1
+
+    print("Found these folders to merge (no files will be moved or copied):")
+    plans = {}
+    for category, branches in branches_by_category.items():
+        mount_path = _pick_mount_path(category, branches)
+        if is_pooled(mount_path):
+            print(f"  {category}: already pooled at {mount_path}, skipping")
+            continue
+        plans[category] = (mount_path, branches)
+        print(f"  {category} -> merged at {mount_path}, combining:")
+        for branch in branches:
+            print(f"      {branch}")
+
+    if not plans:
+        print("Nothing new to pool.")
+        return 0
+
+    if not args.yes:
+        answer = input("\nProceed? This edits /etc/fstab and mounts the pools now. [y/N] ")
+        if answer.strip().lower() not in ("y", "yes"):
+            print("Aborted, nothing changed.")
+            return 1
+
+    try:
+        ensure_sudo()
+    except ElevationError as exc:
+        print(f"Failed: {exc}", file=sys.stderr)
+        return 1
+
+    failures = []
+    for category, (mount_path, branches) in plans.items():
+        try:
+            build_pool(mount_path, branches)
+        except PoolError as exc:
+            print(f"  {category}: FAILED — {exc}", file=sys.stderr)
+            failures.append(category)
+            continue
+        print(f"  {category}: pooled at {mount_path}.")
+
+    if failures:
+        print(f"\n{len(failures)} categor{'y' if len(failures) == 1 else 'ies'} failed: {', '.join(failures)}")
+        return 1
     return 0
 
 
@@ -107,6 +175,15 @@ def main(argv=None):
         "device", nargs="?", default=None, help="e.g. /dev/sda3 (auto-detected if omitted and unambiguous)"
     )
     enroll_parser.set_defaults(func=_cmd_enroll_drive)
+
+    pool_parser = subparsers.add_parser(
+        "pool-drives",
+        help="merge matching folders (Downloads, Documents, ...) across drives into one combined view",
+    )
+    pool_parser.add_argument(
+        "-y", "--yes", action="store_true", help="don't prompt for confirmation"
+    )
+    pool_parser.set_defaults(func=_cmd_pool_drives)
 
     args = parser.parse_args(argv)
     if args.command is None:

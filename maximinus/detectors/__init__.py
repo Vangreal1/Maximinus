@@ -6,8 +6,9 @@ against the union of facts from every detector.
 
 from .hardware import detect_hardware_facts
 from .drives import detect_drive_facts
+from .storage import detect_storage_facts
 
-ALL_DETECTORS = [detect_hardware_facts, detect_drive_facts]
+ALL_DETECTORS = [detect_hardware_facts, detect_drive_facts, detect_storage_facts]
 
 
 def collect_facts():

@@ -44,6 +44,30 @@ Maximinus asks for credentials at most once per run, and never stores them:
   passphrase itself is never written to disk, logged, or cached; see
   [maximinus/security/](maximinus/security/) for the implementation.
 
+## Drive integration (storage pooling)
+
+`maximinus pool-drives` makes several drives *act like* one pool of
+storage, without moving or copying a single file:
+
+- It looks for category folders (Downloads, Documents, Pictures, Videos,
+  Music, Desktop) that exist in more than one place — e.g. `~/Downloads`
+  on this install and `Downloads` under a second Mint install's home
+  partition — and only proposes pooling folders whose structure already
+  matches.
+- It merges them using [mergerfs](https://github.com/trapexit/mergerfs), a
+  FUSE union filesystem: the merged folder shows the combined contents of
+  every branch (so a file browser sees one `Downloads`, not two), and free
+  space reported for it is the sum across branches — new files land on
+  whichever branch has the most room (`category.create=mfs`).
+- The mount point is the original folder itself, which is included as one
+  of the branches, so nothing currently in it becomes hidden or
+  inaccessible — it's just now part of a bigger merged view.
+- This is purely a live view: unmounting the pool (or removing the
+  `/etc/fstab` line it adds) instantly returns every folder to exactly how
+  it looked before, because the underlying files never moved.
+
+See [maximinus/storage/](maximinus/storage/) for the implementation.
+
 ## Extending
 
 Add new facts to a detector, then add a rule in `rules.yaml` that reacts to
