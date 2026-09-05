@@ -65,6 +65,17 @@ storage, without moving or copying a single file:
 - This is purely a live view: unmounting the pool (or removing the
   `/etc/fstab` line it adds) instantly returns every folder to exactly how
   it looked before, because the underlying files never moved.
+- **Boot safety**: every pool's `/etc/fstab` line is written with `nofail`
+  and one `x-systemd.requires-mounts-for=<branch>` per branch, plus short
+  device/mount timeouts. This tells systemd to order the pool mount after
+  each branch is mounted, wait only briefly for a slow branch, and — the
+  important part — never block or fail the boot if a branch (a second
+  drive that's unplugged, a partition that isn't mounted yet, mergerfs
+  itself) doesn't come up in time. Worst case the merged folder just isn't
+  mounted yet; it can't turn into an unbootable system or an emergency
+  shell. `pool-drives` also warns (without blocking) if a branch lives on
+  a drive that has no `/etc/fstab` entry of its own, since that branch
+  won't be there yet at boot until it's mounted by other means.
 
 See [maximinus/storage/](maximinus/storage/) for the implementation.
 

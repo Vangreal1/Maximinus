@@ -1,4 +1,4 @@
-import os
+import subprocess
 from unittest.mock import patch
 
 from maximinus.storage import discovery, pool
@@ -32,6 +32,61 @@ def test_build_pool_rejects_single_branch(tmp_path):
             assert False, "expected PoolError"
         except pool.PoolError:
             pass
+
+
+def test_build_pool_writes_boot_safe_fstab_options(tmp_path):
+    branch_a = tmp_path / "a"
+    branch_b = tmp_path / "b"
+    branch_a.mkdir()
+    branch_b.mkdir()
+    written = {}
+
+    def fake_write_root_file(path, content, mode="0644"):
+        written["path"] = path
+        written["content"] = content
+
+    successful = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+    with patch.object(pool, "is_pooled", return_value=False), patch.object(
+        pool, "ensure_mergerfs_installed"
+    ), patch.object(pool, "read_root_file", return_value=""), patch.object(
+        pool, "write_root_file", side_effect=fake_write_root_file
+    ), patch.object(
+        pool, "run_privileged", return_value=successful
+    ):
+        pool.build_pool(str(branch_a), [str(branch_a), str(branch_b)])
+
+    line = written["content"]
+    assert "nofail" in line
+    assert f"x-systemd.requires-mounts-for={branch_a}" in line
+    assert f"x-systemd.requires-mounts-for={branch_b}" in line
+    assert "x-systemd.device-timeout=10" in line
+    assert "x-systemd.mount-timeout=10" in line
+
+
+def test_check_boot_safety_flags_branch_without_fstab_entry(tmp_path):
+    branch = tmp_path / "somewhere"
+    branch.mkdir()
+
+    with patch.object(pool, "read_root_file", return_value=""), patch.object(
+        pool, "_underlying_mountpoint", return_value="/mnt/other"
+    ):
+        warnings = pool.check_boot_safety([str(branch)])
+
+    assert len(warnings) == 1
+    assert "/mnt/other" in warnings[0]
+
+
+def test_check_boot_safety_ignores_branches_already_covered_by_fstab(tmp_path):
+    branch = tmp_path / "somewhere"
+    branch.mkdir()
+    fstab = "UUID=xyz /mnt/other ext4 defaults 0 2\n"
+
+    with patch.object(pool, "read_root_file", return_value=fstab), patch.object(
+        pool, "_underlying_mountpoint", return_value="/mnt/other"
+    ):
+        warnings = pool.check_boot_safety([str(branch)])
+
+    assert warnings == []
 
 
 def test_build_pool_is_noop_if_already_pooled(tmp_path):

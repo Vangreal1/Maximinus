@@ -15,7 +15,7 @@ from .engine import build_plan
 from .security.luks_enroll import EnrollmentError, enroll
 from .security.sudo_session import ElevationError, ensure_sudo
 from .storage.discovery import discover_category_branches
-from .storage.pool import PoolError, build_pool, is_pooled
+from .storage.pool import PoolError, build_pool, check_boot_safety, is_pooled
 
 
 def _plan_to_dicts(plan):
@@ -123,6 +123,18 @@ def _cmd_pool_drives(args):
     if not plans:
         print("Nothing new to pool.")
         return 0
+
+    all_branches = [b for _, branches in plans.values() for b in branches]
+    boot_warnings = check_boot_safety(all_branches)
+    if boot_warnings:
+        print("\nNote (pooling is still safe to boot with either way — see below):")
+        for warning in boot_warnings:
+            print(f"  - {warning}")
+    print(
+        "\nEach pool mount is set with nofail and per-branch boot ordering, so a "
+        "missing or slow branch at boot can never hang or fail startup — the pool "
+        "just comes up without that branch until it's mounted."
+    )
 
     if not args.yes:
         answer = input("\nProceed? This edits /etc/fstab and mounts the pools now. [y/N] ")
