@@ -216,6 +216,41 @@
       description: "Run `maximinus pool-drives` to merge matching folders (e.g. Downloads) across your drives into one combined view with shared free space. No files are moved."
   reason: "Multiple drives/partitions with matching folder structure detected"
 
+- id: laptop-power-management
+  when: [power.tlp_missing]
+  actions:
+    - type: apt_install
+      packages: [tlp]
+  reason: "This looks like a laptop, and no power-management tool is installed"
+
+- id: firmware-updates
+  when: [firmware.fwupd_missing]
+  actions:
+    - type: apt_install
+      packages: [fwupd]
+  reason: "No tool installed for checking or applying firmware updates"
+
+- id: media-codecs
+  when: [media.codecs_missing]
+  actions:
+    - type: apt_install
+      packages: [libavcodec-extra]
+  reason: "Common media codecs aren't installed, so some audio/video files may not play"
+
+- id: printing-support
+  when: [printing.cups_missing]
+  actions:
+    - type: apt_install
+      packages: [cups]
+  reason: "No printing system installed, so printers won't be usable yet"
+
+- id: low-memory-no-swap
+  when: [mem.low_ram_no_swap]
+  actions:
+    - type: manual_step
+      description: "Run `maximinus fix low-memory-no-swap` to create a 2 GiB swap file. This machine has under 4 GiB of RAM and no swap configured, which usually means slowdowns or crashes once memory runs out."
+  reason: "Low RAM and no swap of any kind configured"
+
 - id: hfsplus-support
   when: [fs.hfsplus_present]
   actions:

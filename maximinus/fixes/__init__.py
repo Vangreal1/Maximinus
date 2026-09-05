@@ -16,9 +16,16 @@ from .dkms_headers import FIXER as _dkms_headers_fixer
 from .errors import FixError
 from .grub_dualboot import FIXER as _grub_dualboot_fixer
 from .registry import FIXERS, Fixer, register
+from .swapfile import FIXER as _swapfile_fixer
 from .timesync import FIXER as _timesync_fixer
 
-for _fixer in (_apt_repair_fixer, _dkms_headers_fixer, _timesync_fixer, _grub_dualboot_fixer):
+for _fixer in (
+    _apt_repair_fixer,
+    _dkms_headers_fixer,
+    _timesync_fixer,
+    _grub_dualboot_fixer,
+    _swapfile_fixer,
+):
     register(_fixer)
 
 __all__ = ["FIXERS", "Fixer", "FixError", "register"]

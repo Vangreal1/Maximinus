@@ -94,6 +94,12 @@ Auto-fixable (standard, well-documented, reversible — see
   mounted to check this) but GRUB won't list it, because os-prober isn't
   installed or is explicitly disabled in `/etc/default/grub`. Installs
   os-prober, re-enables it, and runs `update-grub`.
+- **`low-memory-no-swap`** — under 4 GiB of RAM and no swap configured at
+  all, which usually means slowdowns or crashes once memory runs out.
+  Creates a 2 GiB `/swapfile`, enables it, and adds it to `/etc/fstab`
+  with `nofail`. This one creates new content rather than editing existing
+  config, so undoing it is three plain commands: `sudo swapoff /swapfile`,
+  remove the `/etc/fstab` line, `sudo rm /swapfile`.
 
 Guidance-only (surfaced via `scan`, not auto-fixed, because the fix itself
 carries real risk):
@@ -125,6 +131,20 @@ prompt covers every privileged step, same as everywhere else in Maximinus.
 It's idempotent and safe to re-run any time: every check re-reads live
 system state, so anything already fixed, already installed, or already
 pooled is simply left alone on the next pass.
+
+## A few more fresh-install gaps
+
+Smaller, standalone checks in [maximinus/detectors/extras.py](maximinus/maximinus/detectors/extras.py),
+all surfaced as ordinary `apt_install` recommendations (so `cleanup` and
+the GUI's setup screen install them like any other package):
+
+- **Laptop power management** — a battery is present but `tlp` isn't
+  installed.
+- **Firmware updates** — no `fwupd`/`fwupdmgr`, so there's no way to check
+  for or apply firmware updates from Linux.
+- **Media codecs** — `libavcodec-extra` isn't installed, so some
+  audio/video files may not play.
+- **Printing** — no `cups`, so printers won't work at all yet.
 
 ## Driver health checks
 

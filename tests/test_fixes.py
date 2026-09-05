@@ -11,6 +11,7 @@ def test_registry_has_all_expected_fixers():
         "dkms-headers-missing",
         "time-sync-disabled",
         "grub-os-prober-disabled",
+        "low-memory-no-swap",
     }
 
 
