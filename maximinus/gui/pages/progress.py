@@ -7,12 +7,21 @@ fixer.apply(). See the module docstring in maximinus/gui/__init__.py for
 why. Swapping in real execution later only means replacing what _step()
 does; the screen, the sequencing, and the callback contract all stay the
 same.
+
+Every step also runs inside a try/except so that a bug the rest of the
+code doesn't already handle (anything beyond a FixError/PoolError/
+EnrollmentError, which already carry their own explanation) can't just
+freeze the screen or silently vanish into a GLib warning on the terminal.
+It's shown in red beneath the progress bar instead, and a Continue button
+appears so the user isn't stuck.
 """
 
 import gi
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
+
+from ..errors import format_error
 
 STEP_DELAY_MS = 550
 
@@ -68,6 +77,20 @@ class ProgressPage(Gtk.Box):
         self.progress_bar.set_show_text(True)
         body.pack_start(self.progress_bar, False, False, 0)
 
+        # Beneath the progress bar: hidden until something goes wrong.
+        self.error_label = Gtk.Label(label="", xalign=0)
+        self.error_label.get_style_context().add_class("error-text")
+        self.error_label.set_line_wrap(True)
+        self.error_label.set_no_show_all(True)
+        body.pack_start(self.error_label, False, False, 0)
+
+        self.continue_button = Gtk.Button(label="Continue")
+        self.continue_button.get_style_context().add_class("suggested-action")
+        self.continue_button.set_halign(Gtk.Align.START)
+        self.continue_button.set_no_show_all(True)
+        self.continue_button.connect("clicked", lambda *_: self._finish())
+        body.pack_start(self.continue_button, False, False, 0)
+
         log_frame = Gtk.ScrolledWindow()
         log_frame.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         log_frame.get_style_context().add_class("panel")
@@ -87,6 +110,8 @@ class ProgressPage(Gtk.Box):
         for child in self.log_box.get_children():
             self.log_box.remove(child)
         self.progress_bar.set_fraction(0.0)
+        self.error_label.hide()
+        self.continue_button.hide()
 
         if not self._queue:
             self.status_label.set_text("Nothing was selected, so there's nothing to do here.")
@@ -105,14 +130,25 @@ class ProgressPage(Gtk.Box):
         self.log_box.pack_start(label, False, False, 0)
         label.show()
 
-    def _step(self):
-        kind, payload = self._queue[self._index]
-        headline, detail = _describe(kind, payload)
-        self.status_label.set_text(f"{headline}\n{detail}" if detail else headline)
+    def _show_unexpected_error(self, exc: Exception, context: str) -> None:
+        self.error_label.set_text(format_error(exc, context))
+        self.error_label.show()
+        self.continue_button.show()
 
-        self._index += 1
-        self.progress_bar.set_fraction(self._index / len(self._queue))
-        self._log(headline)
+    def _step(self):
+        try:
+            kind, payload = self._queue[self._index]
+            headline, detail = _describe(kind, payload)
+            self.status_label.set_text(f"{headline}\n{detail}" if detail else headline)
+
+            self._index += 1
+            self.progress_bar.set_fraction(self._index / len(self._queue))
+            self._log(headline)
+        except Exception as exc:  # noqa: BLE001 - deliberate catch-all, see module docstring
+            self._show_unexpected_error(
+                exc, context=f"step {self._index + 1} of {len(self._queue)}"
+            )
+            return False
 
         if self._index >= len(self._queue):
             self._timeout_id = GLib.timeout_add(STEP_DELAY_MS, self._finish)
@@ -120,7 +156,10 @@ class ProgressPage(Gtk.Box):
         return True
 
     def _finish(self):
-        self.status_label.set_text("That's everything that was selected.")
-        self.progress_bar.set_fraction(1.0)
-        self._on_finished()
+        try:
+            self.status_label.set_text("That's everything that was selected.")
+            self.progress_bar.set_fraction(1.0)
+            self._on_finished()
+        except Exception as exc:  # noqa: BLE001 - deliberate catch-all, see module docstring
+            self._show_unexpected_error(exc, context="finishing up")
         return False

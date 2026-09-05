@@ -19,6 +19,8 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
+from ..errors import format_error
+
 
 class FeatureCard(Gtk.Box):
     """One opt-in feature: title, its full explanation, and its own
@@ -141,14 +143,22 @@ class FeaturesPage(Gtk.Box):
             self._on_done([])
             return
         self.enable_button.set_sensitive(False)
+        self.status_label.get_style_context().remove_class("error-text")
         word = "feature" if len(selected) == 1 else "features"
         self.status_label.set_text(f"Turning on {len(selected)} {word}.")
         self.status_label.show()
         GLib.timeout_add(500, self._finish, selected)
 
     def _finish(self, selected):
-        word = "feature" if len(selected) == 1 else "features"
-        self.status_label.set_text(f"Done. {len(selected)} {word} enabled. (Preview only, nothing really changed.)")
-        self.enable_button.set_sensitive(True)
-        self._on_done(selected)
+        try:
+            word = "feature" if len(selected) == 1 else "features"
+            self.status_label.set_text(
+                f"Done. {len(selected)} {word} enabled. (Preview only, nothing really changed.)"
+            )
+            self.enable_button.set_sensitive(True)
+            self._on_done(selected)
+        except Exception as exc:  # noqa: BLE001 - catch-all, see gui/errors.py
+            self.status_label.get_style_context().add_class("error-text")
+            self.status_label.set_text(format_error(exc, context="finishing up"))
+            self.enable_button.set_sensitive(True)
         return False

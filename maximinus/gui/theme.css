@@ -194,6 +194,16 @@ progressbar progress {
     font-family: monospace;
 }
 
+/* The one deliberate departure from the monochrome palette: an error is
+   exactly the kind of thing that should not blend in, and red for "this
+   failed" is about as close to a universal convention as UI gets. */
+.error-text {
+    color: #e05a5a;
+    font-size: 9pt;
+    font-weight: 600;
+    font-family: monospace;
+}
+
 /* ---- Scrollbars: thin, flat ---- */
 scrollbar {
     background-color: transparent;
