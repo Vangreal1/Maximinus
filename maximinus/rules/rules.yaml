@@ -58,6 +58,99 @@
       description: "Run `maximinus enroll-drive <device>` to unlock this drive automatically at boot (asks for your existing passphrase once)."
   reason: "Encrypted (LUKS) drive detected that is not yet set up for automatic unlock"
 
+- id: nvidia-conflicting-packages
+  when: [gpu.nvidia_conflicting_packages]
+  actions:
+    - type: manual_step
+      description: >-
+        More than one NVIDIA driver package is installed at once (check with
+        `dpkg -l | grep nvidia-driver`). This is the exact situation that
+        leaves no driver working at all. Run `ubuntu-drivers devices` to see
+        the recommended version, `sudo apt purge` every other nvidia-driver-*
+        package, then `sudo apt install <recommended>` and reboot.
+  reason: "Multiple NVIDIA driver packages installed simultaneously"
+
+- id: nvidia-nouveau-conflict
+  when: [gpu.nvidia_nouveau_conflict]
+  actions:
+    - type: manual_step
+      description: >-
+        The nvidia driver is installed but the open-source nouveau driver is
+        the one actually loaded — they can't both drive the same GPU.
+        Blacklist nouveau (e.g. add `blacklist nouveau` to
+        /etc/modprobe.d/blacklist-nvidia-nouveau.conf), run
+        `sudo update-initramfs -u`, and reboot.
+  reason: "nouveau is active instead of the installed NVIDIA driver"
+
+- id: nvidia-module-not-loaded
+  when: [gpu.nvidia_module_not_loaded]
+  actions:
+    - type: manual_step
+      description: >-
+        A NVIDIA driver package is installed but its kernel module isn't
+        loaded. Check `sudo dkms status` for a failed build, and `dmesg |
+        grep -i nvidia` for the reason the module refused to load.
+  reason: "NVIDIA driver installed but not active"
+
+- id: nvidia-secureboot-blocking
+  when: [gpu.secureboot_may_block_nvidia]
+  actions:
+    - type: manual_step
+      description: >-
+        Secure Boot is enabled and the nvidia module isn't loaded — Secure
+        Boot silently refuses to load unsigned proprietary modules. Either
+        enroll the MOK key generated when the driver was installed (`sudo
+        mokutil --import /var/lib/shim-signed/mok/MOK.der`, then reboot and
+        follow the blue enrollment screen), or disable Secure Boot in
+        firmware settings.
+  reason: "Secure Boot may be silently blocking the NVIDIA module"
+
+- id: nvidia-smi-failing
+  when: [gpu.nvidia_smi_failing]
+  actions:
+    - type: manual_step
+      description: >-
+        The nvidia kernel module is loaded but `nvidia-smi` can't talk to
+        it — usually a version mismatch between the kernel module and the
+        installed userspace libraries (e.g. leftover files from a previous
+        driver version or a different install method). Reinstall the
+        driver cleanly: `sudo apt purge '*nvidia*'` then `sudo apt install
+        <recommended-version>` and reboot.
+  reason: "nvidia-smi cannot communicate with the loaded driver"
+
+- id: amd-module-not-loaded
+  when: [gpu.amd_module_not_loaded]
+  actions:
+    - type: manual_step
+      description: >-
+        An AMD GPU is present but neither amdgpu nor radeon is loaded.
+        Check `dmesg | grep -i amdgpu` for firmware-loading errors, and
+        confirm the firmware-amd-graphics package is installed.
+  reason: "AMD GPU detected but no kernel driver is active"
+
+- id: amd-radeon-amdgpu-conflict
+  when: [gpu.amd_radeon_amdgpu_conflict]
+  actions:
+    - type: manual_step
+      description: >-
+        Both the legacy radeon driver and modern amdgpu are loaded for the
+        same class of hardware. Force one via a kernel parameter (e.g.
+        `radeon.si_support=0 amdgpu.si_support=1` for Southern Islands
+        cards, adjusted for your GPU generation) so only one claims the
+        device.
+  reason: "radeon and amdgpu are both loaded, which can conflict"
+
+- id: cpu-microcode-wrong-vendor
+  when: [cpu.microcode_wrong_vendor_installed]
+  actions:
+    - type: manual_step
+      description: >-
+        A CPU microcode package for the *other* vendor is installed (e.g.
+        intel-microcode on an AMD CPU). It won't apply, but it's dead
+        weight worth removing: `sudo apt purge intel-microcode` or `sudo
+        apt purge amd64-microcode`, whichever doesn't match your CPU.
+  reason: "Microcode package installed for a CPU vendor that isn't this machine's"
+
 - id: storage-pool-candidate
   when: [storage.poolable]
   actions:

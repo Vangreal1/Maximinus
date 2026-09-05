@@ -44,6 +44,36 @@ Maximinus asks for credentials at most once per run, and never stores them:
   passphrase itself is never written to disk, logged, or cached; see
   [maximinus/security/](maximinus/security/) for the implementation.
 
+## Driver health checks
+
+`maximinus scan` doesn't just check whether a driver package is installed —
+it checks whether it's actually the one running, and whether it conflicts
+with something else. This is what catches the classic Mint/Ubuntu failure
+mode of ending up with two NVIDIA driver packages installed at once, which
+leaves *neither* one working:
+
+- **Conflicting packages**: more than one `nvidia-driver-*`/legacy
+  `nvidia-NNN` package installed simultaneously.
+- **Module vs. package mismatch**: a driver package is installed but its
+  kernel module isn't actually loaded.
+- **nouveau vs. nvidia**: the open-source nouveau driver loaded instead of
+  the installed proprietary one — they can't both drive the same GPU.
+- **Secure Boot**: enabled with the nvidia module not loaded, the most
+  common silent cause (an unsigned proprietary module gets refused with no
+  obvious error).
+- **`nvidia-smi` failing**: the kernel module is loaded but userspace can't
+  talk to it — typically a version mismatch between the module and the
+  installed libraries.
+- **AMD**: neither `amdgpu` nor `radeon` loaded, or both loaded at once.
+- **CPU microcode**: the wrong vendor's microcode package installed (e.g.
+  `intel-microcode` on an AMD CPU).
+
+See [maximinus/detectors/driver_health.py](maximinus/maximinus/detectors/driver_health.py).
+Every finding here is read-only detection — remediation (purging a
+package, blacklisting nouveau, enrolling a MOK key) can affect whether the
+display comes up at all, so it's reported as a specific command for you to
+run, never executed automatically.
+
 ## Drive integration (storage pooling)
 
 `maximinus pool-drives` makes several drives *act like* one pool of
