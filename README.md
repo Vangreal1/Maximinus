@@ -20,27 +20,51 @@ Add `--json` to get the plan as JSON instead of a human-readable list.
 ## GUI (`maximinus gui` / `maximinus-gui`)
 
 A GTK3 front end, styled dark, monochrome, and sharp-edged (no rounded
-corners, no accent color — Blender's UI was the reference point). Requires
+corners, no accent color — Blender's UI was the reference point, with red
+reserved as the one deliberate exception for error text). Requires
 PyGObject (`sudo apt install python3-gi`, already present on any Mint
-desktop). Three screens, matching the intended flow:
+desktop). The full pipeline:
+
+**Setup → Progress → Judgment calls → Progress → Opt-in features → Reboot → back to Setup**
 
 1. **Setup** — every safe/automatic item (package installs, registered
-   fixers) as a checkbox, all pre-selected, editable before you commit.
-2. **Progress** — a status line stating exactly what's happening right now,
-   above a progress bar, with a running log of completed steps below.
+   fixers) as a checkbox, all pre-selected (per the Risk Taking level, see
+   below), editable before you commit.
+2. **Progress** — a status line stating exactly what's happening right
+   now, above a progress bar, with a running log of completed steps below.
+   Reused for two separate passes (see step 4).
 3. **Judgment calls** — everything that needs a human decision (driver
-   conflicts, audio/firewall changes), nothing pre-selected, each row
-   showing the exact consequence text from `rules.yaml`. Checking boxes
-   and clicking OK applies only what you picked.
+   conflicts, audio/firewall changes), nothing pre-selected by default,
+   each row showing the exact consequence text from `rules.yaml`. Clicking
+   OK hands your selection straight to the progress screen.
+4. **Progress, again** — the judgment-call items you just opted into run
+   through the same progress screen as step 2 (skipped entirely if you
+   selected nothing).
+5. **Opt-in features** — storage pooling, on its own dedicated screen; see
+   the section below. Skipped if nothing's available.
+6. **Reboot recommended** — a closing screen noting that some changes
+   (drivers, GRUB, swap, storage pools) only take full effect after a
+   restart. No "Restart Now" button — actually rebooting stays a decision
+   the user makes themselves, never something a screen offers to do for
+   them, especially while execution isn't wired up for real yet.
+
+A **Risk Taking** dropdown (Never/Low/Medium/High) on the setup screen
+controls what starts pre-checked there and on the judgment screen — see
+[maximinus/gui/risk.py](maximinus/maximinus/gui/risk.py) for the exact
+mapping. It never changes what's offered, only the defaults.
 
 **Status: UI and navigation are complete; execution is simulated, not
-real yet.** The setup and judgment screens are populated from the real
+real yet.** Every screen is populated from the real
 `collect_facts()`/`build_plan()`, so what you see reflects this machine's
-actual state — but clicking "Start" or "OK" walks through the selection
-with a short delay instead of actually running `apt-get`/`fixer.apply()`.
-See [maximinus/gui/](maximinus/gui/) — wiring in real execution is a
-small, well-contained next step now that the three-screen flow itself is
-settled.
+actual state — but clicking "Start"/"OK"/"Enable" walks through the
+selection with a short delay instead of actually running
+`apt-get`/`fixer.apply()`. See [maximinus/gui/](maximinus/gui/) — wiring
+in real execution is a small, well-contained next step now that the full
+flow is settled. Any unexpected error along the way (not one of the
+project's own FixError/PoolError/EnrollmentError types) shows up as red
+text with the exception type and message rather than freezing the screen
+or vanishing into the terminal; see
+[maximinus/gui/errors.py](maximinus/maximinus/gui/errors.py).
 
 ## How it works
 

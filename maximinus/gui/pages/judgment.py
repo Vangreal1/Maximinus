@@ -6,14 +6,16 @@ is pre-selected. Each one carries a real trade-off (see rules.yaml's
 manual_step descriptions, which this screen shows word for word), so the
 user has to opt in deliberately rather than uncheck their way out of it.
 
-This is not wired to real execution yet. Clicking OK simulates applying
-the selection with a short delay instead of actually running anything.
+Clicking OK hands the selection straight to the window, which runs it
+through the same progress screen used for the setup screen's items (see
+ProgressPage) rather than simulating anything here itself — that keeps
+there being exactly one place that shows "here's what's happening now."
 """
 
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import GLib, Gtk  # noqa: E402
+from gi.repository import Gtk  # noqa: E402
 
 from .. import risk
 from ..errors import format_error
@@ -144,26 +146,10 @@ class JudgmentPage(Gtk.Box):
 
     def _on_ok_clicked(self, _button):
         selected = [row.item for row in self._rows if row.selected]
-        if not selected:
-            self._on_done([])
-            return
-        self.ok_button.set_sensitive(False)
         self.status_label.get_style_context().remove_class("error-text")
-        word = "item" if len(selected) == 1 else "items"
-        self.status_label.set_text(f"Applying {len(selected)} {word}.")
-        self.status_label.show()
-        GLib.timeout_add(500, self._finish, selected)
-
-    def _finish(self, selected):
         try:
-            word = "item" if len(selected) == 1 else "items"
-            self.status_label.set_text(
-                f"Done. {len(selected)} {word} applied. (This was a preview, nothing really ran.)"
-            )
-            self.ok_button.set_sensitive(True)
             self._on_done(selected)
         except Exception as exc:  # noqa: BLE001 - catch-all, see gui/errors.py
+            self.status_label.set_text(format_error(exc, context="continuing past this screen"))
             self.status_label.get_style_context().add_class("error-text")
-            self.status_label.set_text(format_error(exc, context="finishing up"))
-            self.ok_button.set_sensitive(True)
-        return False
+            self.status_label.show()

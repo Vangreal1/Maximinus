@@ -14,6 +14,13 @@ EnrollmentError, which already carry their own explanation) can't just
 freeze the screen or silently vanish into a GLib warning on the terminal.
 It's shown in red beneath the progress bar instead, and a Continue button
 appears so the user isn't stuck.
+
+This screen is reused for two separate passes in the overall flow: once
+for the safe/automatic items chosen on the setup screen, and again for
+whichever judgment-call items the user opted into on the next screen.
+Each run gets its own `on_finished` callback passed to start(), so the
+window can send the first pass on to the judgment screen and the second
+pass on to the opt-in features screen.
 """
 
 import gi
@@ -38,6 +45,8 @@ def _describe(kind, payload):
             for pkg in action["packages"]
         ]
         return f"Installing {', '.join(packages)}", f"Reason: {payload.reason}."
+    if kind == "judgment":
+        return f"Resolving: {payload.reason}", ""
     return f"Fixing: {payload.summary}", ""
 
 
@@ -104,7 +113,14 @@ class ProgressPage(Gtk.Box):
 
         self.pack_start(body, True, True, 0)
 
-    def start(self, selected_items):
+    def start(self, selected_items, on_finished=None):
+        """Run through `selected_items` ((kind, payload) tuples). If
+        `on_finished` is given, it's used for this run only, so the same
+        screen can be reused for separate passes (safe items, then
+        opted-into judgment calls) that each continue somewhere different.
+        """
+        if on_finished is not None:
+            self._on_finished = on_finished
         self._queue = selected_items
         self._index = 0
         for child in self.log_box.get_children():
@@ -120,6 +136,11 @@ class ProgressPage(Gtk.Box):
 
         self.status_label.set_text("Starting.")
         if self._timeout_id is not None:
+            # None means the previous run's timeout already completed and
+            # returned False, which GLib auto-removes on its own — trying
+            # to remove it again logs a harmless but noisy "Source ID N was
+            # not found" warning, so _step()/_finish() clear this to None
+            # whenever they return False.
             GLib.source_remove(self._timeout_id)
         self._timeout_id = GLib.timeout_add(STEP_DELAY_MS, self._step)
 
@@ -148,6 +169,7 @@ class ProgressPage(Gtk.Box):
             self._show_unexpected_error(
                 exc, context=f"step {self._index + 1} of {len(self._queue)}"
             )
+            self._timeout_id = None
             return False
 
         if self._index >= len(self._queue):
@@ -156,6 +178,7 @@ class ProgressPage(Gtk.Box):
         return True
 
     def _finish(self):
+        self._timeout_id = None
         try:
             self.status_label.set_text("That's everything that was selected.")
             self.progress_bar.set_fraction(1.0)

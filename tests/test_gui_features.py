@@ -69,8 +69,8 @@ def test_features_screen_is_skipped_when_nothing_opt_in():
         win.show_all()
 
         assert win.features_page._cards == []
-        win._go_to_features_or_done([])
-        assert win.stack.get_visible_child_name() == "setup"
+        win._go_to_features_or_reboot([])
+        assert win.stack.get_visible_child_name() == "reboot"
 
         win.destroy()
 
@@ -94,7 +94,7 @@ def test_features_screen_shown_and_unchecked_even_at_high_risk():
         assert len(win.features_page._cards) == 1
 
         win.setup_page.risk_combo.set_active_id("High")
-        win._go_to_features_or_done([])
+        win._go_to_features_or_reboot([])
 
         assert win.stack.get_visible_child_name() == "features"
         # Unlike judgment calls, opt-in features stay unchecked even at High.
@@ -103,7 +103,7 @@ def test_features_screen_shown_and_unchecked_even_at_high_risk():
         win.destroy()
 
 
-def test_enabling_a_feature_returns_to_setup():
+def test_enabling_a_feature_goes_to_reboot_screen():
     with patch("subprocess.run", side_effect=AssertionError("no real commands in this test")):
         with patch(
             "maximinus.gui.window.collect_facts", return_value={"storage.poolable"}
@@ -115,17 +115,21 @@ def test_enabling_a_feature_returns_to_setup():
             win = MaximinusWindow(app)
             win.show_all()
 
-            win._go_to_features_or_done([])
+            win._go_to_features_or_reboot([])
             assert win.stack.get_visible_child_name() == "features"
 
             win.features_page._cards[0].check.set_active(True)
             win.features_page.enable_button.clicked()
 
-            _pump_until(lambda: win.stack.get_visible_child_name() == "setup")
+            _pump_until(lambda: win.stack.get_visible_child_name() == "reboot")
+
+            # And from there, Done returns to setup.
+            win.reboot_page.done_button.clicked()
+            assert win.stack.get_visible_child_name() == "setup"
             win.destroy()
 
 
-def test_skip_button_returns_to_setup_without_enabling():
+def test_skip_button_goes_to_reboot_screen_without_enabling():
     with patch("maximinus.gui.window.collect_facts", return_value={"storage.poolable"}):
         from maximinus.gui.window import MaximinusApp, MaximinusWindow, _load_css
 
@@ -134,8 +138,8 @@ def test_skip_button_returns_to_setup_without_enabling():
         win = MaximinusWindow(app)
         win.show_all()
 
-        win._go_to_features_or_done([])
+        win._go_to_features_or_reboot([])
         win.features_page.skip_button.clicked()
 
-        assert win.stack.get_visible_child_name() == "setup"
+        assert win.stack.get_visible_child_name() == "reboot"
         win.destroy()

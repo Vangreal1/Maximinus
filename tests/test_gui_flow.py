@@ -1,8 +1,9 @@
-"""Drive the GUI through its full Setup -> Progress -> Judgment -> Setup
-cycle on a real GTK main loop, with scan data mocked to a small known set,
-and prove that nothing actually executes: subprocess.run is patched to
-raise if called, so any accidental real apt-get/sudo/cryptsetup call fails
-the test immediately instead of silently touching the machine.
+"""Drive the GUI through its full
+Setup -> Progress -> Judgment -> Progress -> Reboot -> Setup cycle on a
+real GTK main loop, with scan data mocked to a small known set, and prove
+that nothing actually executes: subprocess.run is patched to raise if
+called, so any accidental real apt-get/sudo/cryptsetup call fails the
+test immediately instead of silently touching the machine.
 """
 
 import time
@@ -70,7 +71,7 @@ def test_full_flow_never_shells_out(tmp_path):
             setup.start_button.clicked()
             assert win.stack.get_visible_child_name() == "progress"
 
-            # --- Progress screen: runs to completion on its own timers ---
+            # --- Progress screen (pass 1): runs to completion on its own timers ---
             _pump_until(lambda: win.stack.get_visible_child_name() == "judgment")
 
             # --- Judgment screen: exactly the 1 risky item, unselected ---
@@ -79,12 +80,18 @@ def test_full_flow_never_shells_out(tmp_path):
             assert judgment._rows[0].item.rule_id == "luks-auto-unlock"
             assert not judgment._rows[0].selected  # nothing pre-selected
 
-            # Selecting it and clicking OK should apply just that one item
+            # Selecting it and clicking OK sends it through the progress
+            # screen a second time, not straight to a result.
             judgment._rows[0].check.set_active(True)
             judgment.ok_button.clicked()
+            assert win.stack.get_visible_child_name() == "progress"
 
-            _pump_until(lambda: win.stack.get_visible_child_name() == "setup")
-            assert judgment.ok_button.get_sensitive()  # re-enabled after finishing
+            # --- Progress screen (pass 2): no opt-in features in this fact
+            # set, so it lands directly on the reboot screen. ---
+            _pump_until(lambda: win.stack.get_visible_child_name() == "reboot")
+
+            win.reboot_page.done_button.clicked()
+            assert win.stack.get_visible_child_name() == "setup"
 
             win.destroy()
 
@@ -110,7 +117,7 @@ def test_declining_all_setup_items_skips_straight_to_judgment():
             win.destroy()
 
 
-def test_judgment_ok_with_nothing_selected_returns_to_setup_immediately():
+def test_judgment_ok_with_nothing_selected_skips_progress_and_goes_to_reboot():
     with patch("subprocess.run", side_effect=_no_real_commands_allowed):
         with patch("maximinus.gui.window.collect_facts", return_value=_fake_plan_facts()):
             from maximinus.gui.window import MaximinusApp, MaximinusWindow, _load_css
@@ -124,8 +131,10 @@ def test_judgment_ok_with_nothing_selected_returns_to_setup_immediately():
             win.setup_page.start_button.clicked()
             _pump_until(lambda: win.stack.get_visible_child_name() == "judgment")
 
-            # nothing checked — OK should return immediately, no fake delay
+            # nothing checked — OK should skip the progress screen entirely
+            # (no opt-in features in this fact set either, so straight to
+            # the reboot screen) rather than showing an empty progress run.
             win.judgment_page.ok_button.clicked()
-            assert win.stack.get_visible_child_name() == "setup"
+            assert win.stack.get_visible_child_name() == "reboot"
 
             win.destroy()
